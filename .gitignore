@@ -8,5 +8,6 @@ wheels/
 .DS_Store
 logs/
 
-# Virtual environments
+# Virtual environments and environment variables
 .venv
+.env
