@@ -179,76 +179,76 @@ async def main():
     # Ensure the entire workflow is a single trace
     async with web_search_and_fetch_server, google_sheets_server:
         with trace("Deterministic story flow"):
-            # # 1. Fetch the table content
-            # table_result = await Runner.run(
-            #     fetch_table_agent,
-            #     input_prompt,
-            # )
-            # print(f"Table content fetched: {table_result.final_output.csv_content[:70]}...")
-            # print(f"Source URL: {table_result.final_output.source_url}")
+            # 1. Fetch the table content
+            table_result = await Runner.run(
+                fetch_table_agent,
+                input_prompt,
+            )
+            print(f"Table content fetched: {table_result.final_output.csv_content[:70]}...")
+            print(f"Source URL: {table_result.final_output.source_url}")
 
-            # csv_content = table_result.final_output.csv_content
-            # # Optionally save to file
-            # with open("table_output.csv", "w") as f:
-            #     f.write(csv_content)
+            csv_content = table_result.final_output.csv_content
+            # Optionally save to file
+            with open("table_output.csv", "w") as f:
+                f.write(csv_content)
 
-            # # 2. Check the table content
-            # table_checker_result = await Runner.run(
-            #     table_checker_agent,
-            #     f"""Please check the following table content:
-            #     CSV Content: {table_result.final_output.csv_content}
-            #     Source URL: {table_result.final_output.source_url}
-            #     """,
-            # )
+            # 2. Check the table content
+            table_checker_result = await Runner.run(
+                table_checker_agent,
+                f"""Please check the following table content:
+                CSV Content: {table_result.final_output.csv_content}
+                Source URL: {table_result.final_output.source_url}
+                """,
+            )
 
-            # # 3. Add a gate to stop if the table content has some issues
-            # assert isinstance(table_checker_result.final_output, TableCheckerOutput)
-            # if not table_checker_result.final_output.is_valid:
-            #     print(f"Table content is not valid so we stop here. The reson is: {table_checker_result.final_output.reason}")
-            #     return
-            # print("Table content is valid, so we continue to fetch the current date.")
+            # 3. Add a gate to stop if the table content has some issues
+            assert isinstance(table_checker_result.final_output, TableCheckerOutput)
+            if not table_checker_result.final_output.is_valid:
+                print(f"Table content is not valid so we stop here. The reson is: {table_checker_result.final_output.reason}")
+                return
+            print("Table content is valid, so we continue to fetch the current date.")
 
-            # # 4. Fetch the current date and time
-            # fetch_date_result = await Runner.run(
-            #     fetch_date_agent,
-            #     "Fetch the current date and time.",
-            # )
-            # print(f"Current date and time fetched: {fetch_date_result.final_output.date_content}")
-            # print(f"Source URL: {fetch_date_result.final_output.source_url}")
+            # 4. Fetch the current date and time
+            fetch_date_result = await Runner.run(
+                fetch_date_agent,
+                "Fetch the current date and time.",
+            )
+            print(f"Current date and time fetched: {fetch_date_result.final_output.date_content}")
+            print(f"Source URL: {fetch_date_result.final_output.source_url}")
 
-            # # 5. Add a gate to stop if the table content's format is not valid
-            # date_checker_result = await Runner.run(
-            #     date_checker_agent,
-            #     f"""Please check the following date content:
-            #     Date Content: {fetch_date_result.final_output.date_content}
-            #     Source URL: {fetch_date_result.final_output.source_url}
-            #     """,
-            # )
+            # 5. Add a gate to stop if the table content's format is not valid
+            date_checker_result = await Runner.run(
+                date_checker_agent,
+                f"""Please check the following date content:
+                Date Content: {fetch_date_result.final_output.date_content}
+                Source URL: {fetch_date_result.final_output.source_url}
+                """,
+            )
 
-            # assert isinstance(date_checker_result.final_output, DateCheckerOutput)
-            # if not date_checker_result.final_output.is_valid:
-            #     print(f"Date content's format is not valid so we stop here. The reason is: {date_checker_result.final_output.reason}")
-            #     return
-            # print("Date content's format is valid, so we continue to add this date as the first column in the table.")
+            assert isinstance(date_checker_result.final_output, DateCheckerOutput)
+            if not date_checker_result.final_output.is_valid:
+                print(f"Date content's format is not valid so we stop here. The reason is: {date_checker_result.final_output.reason}")
+                return
+            print("Date content's format is valid, so we continue to add this date as the first column in the table.")
 
-            # # 6. Modify the table content to add the current date
-            # modify_table_result = await Runner.run(
-            #     modify_table_agent,
-            #     f"""Please add a new column with the name “Date” as the first column of the table, 
-            #     and add the current date and time you just found as the value in each row.
-            #     Please also change the header '3 Month Return' to '3 Month Return %'  
-            #     and 'YTD Return' to 'YTD Return %'.
-            #     CSV table Content: {table_result.final_output.csv_content} 
-            #     Current Date: {fetch_date_result.final_output.date_content}
-            #     """,
-            # )
+            # 6. Modify the table content to add the current date
+            modify_table_result = await Runner.run(
+                modify_table_agent,
+                f"""Please add a new column with the name “Date” as the first column of the table, 
+                and add the current date and time you just found as the value in each row.
+                Please also change the header '3 Month Return' to '3 Month Return %'  
+                and 'YTD Return' to 'YTD Return %'.
+                CSV table Content: {table_result.final_output.csv_content} 
+                Current Date: {fetch_date_result.final_output.date_content}
+                """,
+            )
 
-            # print(f"Modified table content: {modify_table_result.final_output.csv_content[:80]}...")
+            print(f"Modified table content: {modify_table_result.final_output.csv_content[:80]}...")
 
-            # modify_csv_content = modify_table_result.final_output.csv_content
-            # # Optionally save to file
-            # with open("table_output.csv", "w") as f:
-            #     f.write(modify_csv_content)
+            modify_csv_content = modify_table_result.final_output.csv_content
+            # Optionally save to file
+            with open("table_output.csv", "w") as f:
+                f.write(modify_csv_content)
 
             # 7. Check if the Google Spreadsheet file is accessible 
             google_sheets_list = await Runner.run(
