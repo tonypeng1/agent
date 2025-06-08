@@ -8,4 +8,5 @@ dependencies = [
     "duckduckgo-mcp-server>=0.1.1",
     "openai-agents[litellm]>=0.0.16",
     "python-dotenv>=1.1.0",
+    "tiktoken>=0.9.0",
 ]

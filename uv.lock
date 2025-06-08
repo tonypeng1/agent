@@ -10,6 +10,7 @@ dependencies = [
     { name = "duckduckgo-mcp-server" },
     { name = "openai-agents", extra = ["litellm"] },
     { name = "python-dotenv" },
+    { name = "tiktoken" },
 ]
 
 [package.metadata]
@@ -17,6 +18,7 @@ requires-dist = [
     { name = "duckduckgo-mcp-server", specifier = ">=0.1.1" },
     { name = "openai-agents", extras = ["litellm"], specifier = ">=0.0.16" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
+    { name = "tiktoken", specifier = ">=0.9.0" },
 ]
 
 [[package]]
