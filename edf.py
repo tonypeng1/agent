@@ -33,6 +33,8 @@ class ModifyTableContent(BaseModel):
 class GoogleSheetsListOutput(BaseModel):
     spreadsheet_name: str
     spreadsheet_id: str
+    B1_to_B200: list[str]  # Specify the type of items in the list
+    first_empty_row: int  # The first empty row in the sheet
     error: str = None  # Optional error message
 
 class GoogleSheetsAppendOutput(BaseModel):
@@ -152,7 +154,9 @@ async def main():
     google_sheet_list_agent = Agent(
         name="google_sheet_list_agent",
         instructions="""Find if a Google spreadsheet file is available in the configured Google Drive 
-        folder you have access to. If yes, list this file name and its Google spreadsheet ID.""",
+        folder you have access to. If yes, return its name and spreadsheet ID. Also, return the data from B1:B200. 
+        Then check the content of B1:B200 one by one, and report the row number of the first EMPTY row.""",
+        # return the row number of the FIRST row whose value is NOT null.""",
         output_type=GoogleSheetsListOutput,
         model=agent_model,
         mcp_servers=[google_sheets_server],
@@ -160,11 +164,17 @@ async def main():
 
     google_sheet_agent = Agent(
         name="google_sheet_agent",
-        # instructions="""Append the given rows to the specified sheet in the given Google Spreadsheet.
-        # The input will be a dictionary containing the spreadsheet_id, sheet_name, and rows to append.
-        # For example: {"spreadsheet_id": "...", "sheet_name": "...", "rows": "[['2024-07-31', 'Task A Completed'], ['2024-08-01', 'Task B Started']]"}.
-        # Parse the dictionary to extract the spreadsheet_id, sheet_name, and rows. Do not include a header row.""",
-        instructions="""APPEND new rows to the specified sheet in the given Google Spreadsheet.""",
+        instructions=(
+        "Append the provided rows to the specified sheet in the given Google Spreadsheet. "
+        "Use the following input fields:\n"
+        "- 'spreadsheet_id': the ID of the target spreadsheet\n"
+        "- 'sheet_name': the name of the target sheet\n"
+        "- 'start_row': the row number to start appending (1-based)\n"
+        "- 'start_col': the column letter to start appending (e.g., 'A')\n"
+        "- 'end_col': the column letter to end appending (e.g., 'L')\n"
+        "- 'rows': a list of lists representing the table data, with the first row as headers\n"
+        "Append all rows starting at the specified location. Return success status and any error message."
+        ),
         model="gpt-4.1-mini",
         mcp_servers=[google_sheets_server],
         output_type=GoogleSheetsAppendOutput,
@@ -246,14 +256,19 @@ async def main():
             print(f"Modified table content: {modify_table_result.final_output.csv_content[:80]}...")
 
             modify_csv_content = modify_table_result.final_output.csv_content
-            # Optionally save to file
+            # Save to file
             with open("table_output.csv", "w") as f:
                 f.write(modify_csv_content)
 
             # 7. Check if the Google Spreadsheet file is accessible 
             google_sheets_list = await Runner.run(
                 google_sheet_list_agent,
-                "Please check if the spreadsheet with the name 'Yahoo ETF' is available.",
+                (
+                "Please check if the spreadsheet with the name 'Yahoo ETF' is available. If yes, check the sheet "
+                "'ETF' in the spreadsheet and return the spreadsheet name, ID, the data from B1 to B200, "
+                "and the row number of the first EMPTY row. "
+                # "Please note that if the first non-empty row number you found is 2, return 1 instead. "
+                )
             )
 
             # 8. Add a gate to stop if the Google Spreadsheet file is not accessible
@@ -261,7 +276,9 @@ async def main():
                 print(f"Google Sheets access error: {google_sheets_list.final_output.error}. Stop here.")
                 return
             else:
-                print(f"""The spread sheet file '{google_sheets_list.final_output.spreadsheet_name}' has an ID: {google_sheets_list.final_output.spreadsheet_id}. Continue to append the modified table content.""")
+                print(f"The spread sheet file '{google_sheets_list.final_output.spreadsheet_name}' has an ID: {google_sheets_list.final_output.spreadsheet_id}. Continue to append the modified table content.")
+                print(f"B1 to B200: {google_sheets_list.final_output.B1_to_B200[:70]}...")  # Print first 70 values for brevity
+                print(f"First empty row in the sheet: {google_sheets_list.final_output.first_empty_row}. Start appending to Google sheet from this row.")
                 
             # 9. Append the modified table to Google Sheet
             # Read the CSV content from the file and convert to list of lists
@@ -288,48 +305,47 @@ async def main():
                         if not cell.startswith("'"):
                             row[col_idx] = f"'{cell}"
 
+            # # # Print rows for debugging
+            # for i, row in enumerate(rows[:21]):
+            #     print(f"Row {i}: {row}\n")
+            # print("...")
+
             spreadsheet_id = google_sheets_list.final_output.spreadsheet_id
             sheet_name = "ETF"
+            start_row = google_sheets_list.final_output.first_empty_row
+
             # rows_to_append = [['2024-07-31', 'Task A Completed'], ['2024-08-01', 'Task B Started']]
+
+            if start_row != 1:
+                # remove the header row from the rows to append
+                rows = rows[1:]
+            else:
+                # If the first empty row is 1, we assume the header row is not present
+                # and we need to append the header row as well
+                rows = rows
 
             input_data = {
                 "spreadsheet_id": spreadsheet_id,
                 "sheet_name": sheet_name,
+                "start_row": start_row,
+                "start_col": "A",
+                "end_col": "L",
                 "rows": rows
             }
             google_sheets_result = await Runner.run(
                 google_sheet_agent,
-                [{"role": "user", "content": str(input_data)}],
+                # [{"role": "user", "content": str(input_data)}],
+                f"Please append the {input_data['rows']} to the Google Spreadsheet with ID '{input_data['spreadsheet_id']}' in the sheet '{input_data['sheet_name']}' starting at row {input_data['start_row']} and column {input_data['start_col']}."
             )
 
             # 10. Add a gate to check if the append operation was successful
             assert isinstance(google_sheets_result.final_output, GoogleSheetsAppendOutput)
             if getattr(google_sheets_result.final_output, "error", None):
-                print(f"Failed to append: {google_sheets_result.final_output.error}. Stop here.")
+                print(f"Failed to append: {google_sheets_result.final_output.error} Stop here.")
                 return
 
             print("Successfully appended the table to the Google Sheet.")
 
-            # # Separate header and data rows
-            # header, *data_rows = rows
-
-            # # Batch size for appending rows
-            # batch_size = 1
-
-            # # Append data in batches to avoid token limits
-            # for i in range(0, len(data_rows), batch_size):
-            #     batch = data_rows[i:i+batch_size]
-            #     print(f"Appending batch {i//batch_size + 1}: {len(batch)} rows")
-            #     print(f"Batch content: {batch}")
-            #     google_sheets_result = await Runner.run(
-            #         google_sheet_agent,
-            #         f"""Append these rows to the '{sheet_name}' sheet in spreadsheet {spreadsheet_name}: {batch}""",
-            #     )
-            #     if getattr(google_sheets_result.final_output, "error", None):
-            #         print(f"Failed to append batch {i//batch_size + 1}: google_sheets_result.final_output.error} Stop here.")
-            #         return
-
-            # print("Successfully appended all batches to the Google Sheet.")
 
 
 if __name__ == "__main__":
