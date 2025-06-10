@@ -334,8 +334,12 @@ async def main():
             }
             google_sheets_result = await Runner.run(
                 google_sheet_agent,
-                # [{"role": "user", "content": str(input_data)}],
-                f"Please append the {input_data['rows']} to the Google Spreadsheet with ID '{input_data['spreadsheet_id']}' in the sheet '{input_data['sheet_name']}' starting at row {input_data['start_row']} and column {input_data['start_col']}."
+                (
+                    f"Please append the {input_data['rows']} to the Google Spreadsheet with ID "
+                    f"'{input_data['spreadsheet_id']}' in the sheet '{input_data['sheet_name']}' "
+                    f"starting at row {input_data['start_row']} and column {input_data['start_col']} "
+                    f"and ending with column {input_data['end_col']}."
+                )
             )
 
             # 10. Add a gate to check if the append operation was successful
