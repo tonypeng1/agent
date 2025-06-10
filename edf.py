@@ -7,7 +7,7 @@ import csv
 from agents import Agent, Runner, trace
 from agents.extensions.models.litellm_model import LitellmModel
 from agents.mcp import MCPServerStdio
-import tiktoken
+# import tiktoken
 
 
 class TableContent(BaseModel):
@@ -237,7 +237,7 @@ async def main():
 
             assert isinstance(date_checker_result.final_output, DateCheckerOutput)
             if not date_checker_result.final_output.is_valid:
-                print(f"Date content's format is not valid so we stop here. The reason is: {date_checker_result.final_output.reason}")
+                print(f"Date format is not valid so we stop here. The reason is: {date_checker_result.final_output.reason}")
                 return
             print("Date content's format is valid, so we continue to add this date as the first column in the table.")
 
@@ -276,7 +276,10 @@ async def main():
                 print(f"Google Sheets access error: {google_sheets_list.final_output.error}. Stop here.")
                 return
             else:
-                print(f"The spread sheet file '{google_sheets_list.final_output.spreadsheet_name}' has an ID: {google_sheets_list.final_output.spreadsheet_id}. Continue to append the modified table content.")
+                print(
+                    f"The spreadsheet file '{google_sheets_list.final_output.spreadsheet_name}' "
+                    f"has an ID: {google_sheets_list.final_output.spreadsheet_id}. "
+                )
                 print(f"B1 to B200: {google_sheets_list.final_output.B1_to_B200[:70]}...")  # Print first 70 values for brevity
                 print(f"First empty row in the sheet: {google_sheets_list.final_output.first_empty_row}. Start appending to Google sheet from this row.")
                 
@@ -286,7 +289,8 @@ async def main():
                 reader = csv.reader(f)
                 rows = list(reader)
 
-            # Convert percentage columns to string with '%' if not already
+            # Convert percentage columns to string with '%' before uploading to Google sheet.
+            # fo avoid issues with Google sheet converting them to numbers.
             percent_headers = [i for i, h in enumerate(rows[0]) if h.strip().endswith('%')]
             for row_idx, row in enumerate(rows):
                 for col_idx in percent_headers:
