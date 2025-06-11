@@ -33,8 +33,7 @@ class ModifyTableContent(BaseModel):
 class GoogleSheetsListOutput(BaseModel):
     spreadsheet_name: str
     spreadsheet_id: str
-    B1_to_B200: list[str]  # Specify the type of items in the list
-    first_empty_row: int  # The first empty row in the sheet
+    B_column: list[str]  # Specify the type of items in the list
     error: str = None  # Optional error message
 
 class GoogleSheetsAppendOutput(BaseModel):
@@ -113,10 +112,12 @@ async def main():
     table_checker_agent = Agent(
         name="table_checker_agent",
         instructions=(
-            "Check if the table content is valid by ensuring that it includes headers that match "
+            "Perform the following tasks: \n"
+            "- Check if the table content is valid by ensuring that it includes headers that match "
             "(case-insensitive) 'Symbol', 'Name', 'Price', 'Change', 'Change %', 'Volume', '50 Day Average', "
-            "'200 Day Average', '3 Month Return', 'YTD Return', and '52 Wk Change %'. "
-            "Also, ensure that the table contains at least 20 data rows (plus header row)."
+            "'200 Day Average', '3 Month Return', 'YTD Return', and '52 Wk Change %'. \n"
+            "- Also, ensure that the table contains at least 20 data rows (plus header row). \n"
+            "- Finally, Check if the number of items in the SECOND row of the table is the same as that of the header row."
         ),
         output_type=TableCheckerOutput,
         model=agent_model,
@@ -153,12 +154,14 @@ async def main():
 
     google_sheet_list_agent = Agent(
         name="google_sheet_list_agent",
-        instructions="""Find if a Google spreadsheet file is available in the configured Google Drive 
-        folder you have access to. If yes, return its name and spreadsheet ID. Also, return the data from B1:B200. 
-        Then check the content of B1:B200 one by one, and report the row number of the first EMPTY row.""",
-        # return the row number of the FIRST row whose value is NOT null.""",
+        instructions=(
+            "Perform the following tasks: \n"
+            "- Find if a Google spreadsheet file is available in the configured Google Drive you have access to. \n"
+            "- If yes, return its name and spreadsheet ID. \n"
+            "- Also, return the data from 'B1' tp 'B500'. \n" 
+        ),
         output_type=GoogleSheetsListOutput,
-        model=agent_model,
+        model="gpt-4.1-mini",
         mcp_servers=[google_sheets_server],
     )
 
@@ -265,9 +268,7 @@ async def main():
                 google_sheet_list_agent,
                 (
                 "Please check if the spreadsheet with the name 'Yahoo ETF' is available. If yes, check the sheet "
-                "'ETF' in the spreadsheet and return the spreadsheet name, ID, the data from B1 to B200, "
-                "and the row number of the first EMPTY row. "
-                # "Please note that if the first non-empty row number you found is 2, return 1 instead. "
+                "'ETF' in the spreadsheet and return the spreadsheet name, ID, the data from cell 'B1' to 'B500'. "
                 )
             )
 
@@ -280,8 +281,9 @@ async def main():
                     f"The spreadsheet file '{google_sheets_list.final_output.spreadsheet_name}' "
                     f"has an ID: {google_sheets_list.final_output.spreadsheet_id}. "
                 )
-                print(f"B1 to B200: {google_sheets_list.final_output.B1_to_B200[:70]}...")  # Print first 70 values for brevity
-                print(f"First empty row in the sheet: {google_sheets_list.final_output.first_empty_row}. Start appending to Google sheet from this row.")
+                print(f"B column: {google_sheets_list.final_output.B_column[:70]}...")  # Print first 70 values for brevity
+                print(f"First empty row in the sheet: {len(google_sheets_list.final_output.B_column)+1}. "
+                      "Start appending to Google sheet from this row.")
                 
             # 9. Append the modified table to Google Sheet
             # Read the CSV content from the file and convert to list of lists
@@ -289,23 +291,35 @@ async def main():
                 reader = csv.reader(f)
                 rows = list(reader)
 
-            # Convert percentage columns to string with '%' before uploading to Google sheet.
-            # fo avoid issues with Google sheet converting them to numbers.
+            # Convert percentage columns to string with '%' before uploading to Google sheet
+            # to avoid issues with Google sheet converting them to numbers.
             percent_headers = [i for i, h in enumerate(rows[0]) if h.strip().endswith('%')]
+            # Also convert the "Volume" column to string
+            volume_idx = next((i for i, h in enumerate(rows[0]) if h.strip().lower() == "volume"), None)
+            columns_to_string = percent_headers.copy()
+            if volume_idx is not None:
+                columns_to_string.append(volume_idx)
+
             for row_idx, row in enumerate(rows):
-                for col_idx in percent_headers:
+                for col_idx in columns_to_string:
                     if row_idx == 0:
                         continue  # Skip header
                     cell = row[col_idx]
-                    # Always force as string with percent sign, prefixed with a single quote
-                    if not cell.endswith('%'):
-                        try:
-                            val = float(cell)
-                            row[col_idx] = f"'{val * 100:.2f}%"
-                        except Exception:
-                            row[col_idx] = f"'{cell}" if not cell.startswith("'") else cell
-                    else:
-                        # If already percent, still prefix with single quote if not present
+                    # Handle percent columns
+                    if col_idx in percent_headers:
+                        # Always force as string with percent sign, prefixed with a single quote
+                        if not cell.endswith('%'):
+                            try:
+                                val = float(cell)
+                                row[col_idx] = f"'{val * 100:.2f}%"
+                            except Exception:
+                                row[col_idx] = f"'{cell}" if not cell.startswith("'") else cell
+                        else:
+                            # If already percent, still prefix with single quote if not present
+                            if not cell.startswith("'"):
+                                row[col_idx] = f"'{cell}"
+                    # Handle Volume column
+                    elif col_idx == volume_idx:
                         if not cell.startswith("'"):
                             row[col_idx] = f"'{cell}"
 
@@ -316,7 +330,7 @@ async def main():
 
             spreadsheet_id = google_sheets_list.final_output.spreadsheet_id
             sheet_name = "ETF"
-            start_row = google_sheets_list.final_output.first_empty_row
+            start_row = len(google_sheets_list.final_output.B_column) + 1  # Find the first empty row in B column
 
             # rows_to_append = [['2024-07-31', 'Task A Completed'], ['2024-08-01', 'Task B Started']]
 
@@ -332,6 +346,7 @@ async def main():
                 "spreadsheet_id": spreadsheet_id,
                 "sheet_name": sheet_name,
                 "start_row": start_row,
+                "end_row": start_row + len(rows) - 1,
                 "start_col": "A",
                 "end_col": "L",
                 "rows": rows
@@ -342,7 +357,7 @@ async def main():
                     f"Please append the {input_data['rows']} to the Google Spreadsheet with ID "
                     f"'{input_data['spreadsheet_id']}' in the sheet '{input_data['sheet_name']}' "
                     f"starting at row {input_data['start_row']} and column {input_data['start_col']} "
-                    f"and ending with column {input_data['end_col']}."
+                    f"and ending at row {input_data['end_row']} and column {input_data['end_col']}."
                 )
             )
 
@@ -353,8 +368,6 @@ async def main():
                 return
 
             print("Successfully appended the table to the Google Sheet.")
-
-
 
 if __name__ == "__main__":
     asyncio.run(main())
