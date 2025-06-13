@@ -216,20 +216,29 @@ async def main():
                 f.write(csv_content)
 
             # 2. Check the table content
-            table_checker_result = await Runner.run(
-                table_checker_agent,
-                f"""Please check the following table content:
-                CSV Content: {table_result.final_output.csv_content}
-                Source URL: {table_result.final_output.source_url}
-                """,
-            )
+            max_table_checker_retries = 3
+            table_checker_retry_count = 0
+            while table_checker_retry_count < max_table_checker_retries:
+                table_checker_result = await Runner.run(
+                    table_checker_agent,
+                    f"""Please check the following table content:
+                    CSV Content: {table_result.final_output.csv_content}
+                    Source URL: {table_result.final_output.source_url}
+                    """,
+                )
 
-            # 3. Add a gate to stop if the table content has some issues
-            assert isinstance(table_checker_result.final_output, TableCheckerOutput)
-            if not table_checker_result.final_output.is_valid:
-                print(f"Table content is not valid so we stop here. The reson is: {table_checker_result.final_output.reason}")
-                return
-            print("Table content is valid, so we continue to fetch the current date.")
+                # 3. Add a gate to stop if the table content has some issues
+                assert isinstance(table_checker_result.final_output, TableCheckerOutput)
+                if not table_checker_result.final_output.is_valid:
+                    print(f"Table content is not valid (attempt {table_checker_retry_count+1}/3). The reason is: {table_checker_result.final_output.reason}")
+                    table_checker_retry_count += 1
+                    if table_checker_retry_count == max_table_checker_retries:
+                        print("Table content is not valid after 3 attempts. Stopping here.")
+                        return
+                    print("Retrying table content check...")
+                    continue
+                print("Table content is valid, so we continue to fetch the current date.")
+                break
 
             # 4. Fetch the current date and time
             fetch_date_result = await Runner.run(
@@ -274,7 +283,9 @@ async def main():
                 f.write(modify_csv_content)
 
             # 7 & 8. Check if the Google Spreadsheet file is accessible and in correct sequence
-            while True:
+            max_retries = 3
+            retry_count = 0
+            while retry_count < max_retries:
                 google_sheets_list = await Runner.run(
                     google_sheet_list_agent,
                     (
@@ -288,10 +299,12 @@ async def main():
 
                 if getattr(google_sheets_list.final_output, "error", None):
                     print(f"Google Sheets access error: {google_sheets_list.final_output.error}. Retrying...")
+                    retry_count += 1
                     continue  # Retry
                 elif not is_in_sequence(first_empty_row):
                     print(f"Current first empty row in the D column: {first_empty_row},"
                           " which is not in the correct sequence of 1, 22, 42, 62, etc. Retrying...")
+                    retry_count += 1
                     continue  # Retry
                 else:
                     print(
@@ -301,6 +314,10 @@ async def main():
                     print(f"First empty row in the sheet: {first_empty_row}. "
                           "Start appending to Google sheet from this row.")
                     break  # Exit loop if all is good
+            else:
+                print("NOTE: Maximum retries reached for accessing Google Sheet or sequence.")
+                print("Failed to access Google Sheet or sequence after 3 retries. Stopping here.")
+                return
 
             # 9. Append the modified table to Google Sheet
             # Read the CSV content from the file and convert to list of lists
