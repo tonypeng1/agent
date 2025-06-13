@@ -33,13 +33,22 @@ class ModifyTableContent(BaseModel):
 class GoogleSheetsListOutput(BaseModel):
     spreadsheet_name: str
     spreadsheet_id: str
-    B_column: list[str]  # Specify the type of items in the list
+    D_column: list[str]  # Specify the type of items in the list
+    # first_empty_row: int  # Specify the type of items in the list
     error: str = None  # Optional error message
 
 class GoogleSheetsAppendOutput(BaseModel):
     success: bool
     error: str = None # Optional error message
     
+
+def is_in_sequence(n):
+    if n == 1:
+        return True
+    if n < 22:
+        return False
+    return (n - 22) % 20 == 0
+
 
 async def main():
     """
@@ -95,7 +104,7 @@ async def main():
             },
         name="mcp-google-sheets",
         client_session_timeout_seconds=5,
-        cache_tools_list=True
+        cache_tools_list=False
     )
 
     # Define agents
@@ -158,7 +167,8 @@ async def main():
             "Perform the following tasks: \n"
             "- Find if a Google spreadsheet file is available in the configured Google Drive you have access to. \n"
             "- If yes, return its name and spreadsheet ID. \n"
-            "- Also, return the data from 'B1' tp 'B500'. \n" 
+            "- Also, return the data from 'D' column of the sheet user specified. \n" 
+            " Do NOT SKIP any data row, return all NON-EMPTY values in the D column in their original sequence. \n"
         ),
         output_type=GoogleSheetsListOutput,
         model="gpt-4.1-mini",
@@ -263,28 +273,35 @@ async def main():
             with open("table_output.csv", "w") as f:
                 f.write(modify_csv_content)
 
-            # 7. Check if the Google Spreadsheet file is accessible 
-            google_sheets_list = await Runner.run(
-                google_sheet_list_agent,
-                (
-                "Please check if the spreadsheet with the name 'Yahoo ETF' is available. If yes, check the sheet "
-                "'ETF' in the spreadsheet and return the spreadsheet name, ID, the data from cell 'B1' to 'B500'. "
+            # 7 & 8. Check if the Google Spreadsheet file is accessible and in correct sequence
+            while True:
+                google_sheets_list = await Runner.run(
+                    google_sheet_list_agent,
+                    (
+                        "Please check if the spreadsheet with the name 'Yahoo ETF' is available. If yes, check the sheet "
+                        "'ETF' in the spreadsheet and return the spreadsheet name, ID, the data from all cells in the D column. "
+                        "Do NOT SKIP any data, return all NON-EMPTY values in the D column in their original sequence. "
+                    )
                 )
-            )
 
-            # 8. Add a gate to stop if the Google Spreadsheet file is not accessible
-            if getattr(google_sheets_list.final_output, "error", None):
-                print(f"Google Sheets access error: {google_sheets_list.final_output.error}. Stop here.")
-                return
-            else:
-                print(
-                    f"The spreadsheet file '{google_sheets_list.final_output.spreadsheet_name}' "
-                    f"has an ID: {google_sheets_list.final_output.spreadsheet_id}. "
-                )
-                print(f"B column: {google_sheets_list.final_output.B_column[:70]}...")  # Print first 70 values for brevity
-                print(f"First empty row in the sheet: {len(google_sheets_list.final_output.B_column)+1}. "
-                      "Start appending to Google sheet from this row.")
-                
+                first_empty_row = len(google_sheets_list.final_output.D_column) + 1
+
+                if getattr(google_sheets_list.final_output, "error", None):
+                    print(f"Google Sheets access error: {google_sheets_list.final_output.error}. Retrying...")
+                    continue  # Retry
+                elif not is_in_sequence(first_empty_row):
+                    print(f"Current first empty row in the D column: {first_empty_row},"
+                          " which is not in the correct sequence of 1, 22, 42, 62, etc. Retrying...")
+                    continue  # Retry
+                else:
+                    print(
+                        f"The spreadsheet file '{google_sheets_list.final_output.spreadsheet_name}' "
+                        f"has an ID: {google_sheets_list.final_output.spreadsheet_id}. "
+                    )
+                    print(f"First empty row in the sheet: {first_empty_row}. "
+                          "Start appending to Google sheet from this row.")
+                    break  # Exit loop if all is good
+
             # 9. Append the modified table to Google Sheet
             # Read the CSV content from the file and convert to list of lists
             with open("table_output.csv", "r") as f:
@@ -330,7 +347,7 @@ async def main():
 
             spreadsheet_id = google_sheets_list.final_output.spreadsheet_id
             sheet_name = "ETF"
-            start_row = len(google_sheets_list.final_output.B_column) + 1  # Find the first empty row in B column
+            start_row = len(google_sheets_list.final_output.D_column) + 1  # Find the first empty row in D column
 
             # rows_to_append = [['2024-07-31', 'Task A Completed'], ['2024-08-01', 'Task B Started']]
 
@@ -368,6 +385,7 @@ async def main():
                 return
 
             print("Successfully appended the table to the Google Sheet.")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
