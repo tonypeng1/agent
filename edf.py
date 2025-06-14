@@ -42,7 +42,7 @@ class GoogleSheetsAppendOutput(BaseModel):
     error: str = None # Optional error message
     
 
-def is_in_sequence(n):
+def is_in_correct_group(n):
     if n == 1:
         return True
     if n < 22:
@@ -202,23 +202,23 @@ async def main():
     # Ensure the entire workflow is a single trace
     async with web_search_and_fetch_server, google_sheets_server:
         with trace("Deterministic story flow"):
-            # 1. Fetch the table content
-            table_result = await Runner.run(
-                fetch_table_agent,
-                input_prompt,
-            )
-            print(f"Table content fetched: {table_result.final_output.csv_content[:70]}...")
-            print(f"Source URL: {table_result.final_output.source_url}")
-
-            csv_content = table_result.final_output.csv_content
-            # Optionally save to file
-            with open("table_output.csv", "w") as f:
-                f.write(csv_content)
-
-            # 2. Check the table content
+            # 1. Fetch and Check the table content
             max_table_checker_retries = 3
             table_checker_retry_count = 0
             while table_checker_retry_count < max_table_checker_retries:
+                # Fetch the table content each time
+                table_result = await Runner.run(
+                    fetch_table_agent,
+                    input_prompt,
+                )
+                print(f"Table content fetched: {table_result.final_output.csv_content[:70]}...")
+                print(f"Source URL: {table_result.final_output.source_url}")
+
+                csv_content = table_result.final_output.csv_content
+                # Optionally save to file
+                with open("table_output.csv", "w") as f:
+                    f.write(csv_content)
+
                 table_checker_result = await Runner.run(
                     table_checker_agent,
                     f"""Please check the following table content:
@@ -227,7 +227,7 @@ async def main():
                     """,
                 )
 
-                # 3. Add a gate to stop if the table content has some issues
+                # Add a gate to stop if the table content has some issues
                 assert isinstance(table_checker_result.final_output, TableCheckerOutput)
                 if not table_checker_result.final_output.is_valid:
                     print(f"Table content is not valid (attempt {table_checker_retry_count+1}/3). The reason is: {table_checker_result.final_output.reason}")
@@ -235,12 +235,12 @@ async def main():
                     if table_checker_retry_count == max_table_checker_retries:
                         print("Table content is not valid after 3 attempts. Stopping here.")
                         return
-                    print("Retrying table content check...")
+                    print("Retrying table fetch and check...")
                     continue
                 print("Table content is valid, so we continue to fetch the current date.")
                 break
 
-            # 4. Fetch the current date and time
+            # 2. Fetch the current date and time
             fetch_date_result = await Runner.run(
                 fetch_date_agent,
                 "Fetch the current date and time.",
@@ -248,7 +248,7 @@ async def main():
             print(f"Current date and time fetched: {fetch_date_result.final_output.date_content}")
             print(f"Source URL: {fetch_date_result.final_output.source_url}")
 
-            # 5. Add a gate to stop if the table content's format is not valid
+            # 3. Add a gate to stop if the table content's format is not valid
             date_checker_result = await Runner.run(
                 date_checker_agent,
                 f"""Please check the following date content:
@@ -263,7 +263,7 @@ async def main():
                 return
             print("Date content's format is valid, so we continue to add this date as the first column in the table.")
 
-            # 6. Modify the table content to add the current date
+            # 4. Modify the table content to add the current date
             modify_table_result = await Runner.run(
                 modify_table_agent,
                 f"""Please add a new column with the name “Date” as the first column of the table, 
@@ -282,7 +282,7 @@ async def main():
             with open("table_output.csv", "w") as f:
                 f.write(modify_csv_content)
 
-            # 7 & 8. Check if the Google Spreadsheet file is accessible and in correct sequence
+            # 5. Check if the Google Spreadsheet file is accessible and the first empty row is in a possible value group
             max_retries = 3
             retry_count = 0
             while retry_count < max_retries:
@@ -301,9 +301,9 @@ async def main():
                     print(f"Google Sheets access error: {google_sheets_list.final_output.error}. Retrying...")
                     retry_count += 1
                     continue  # Retry
-                elif not is_in_sequence(first_empty_row):
+                elif not is_in_correct_group(first_empty_row):
                     print(f"Current first empty row in the D column: {first_empty_row},"
-                          " which is not in the correct sequence of 1, 22, 42, 62, etc. Retrying...")
+                          " which is not in the correct group of 1, 22, 42, 62, etc. Retrying...")
                     retry_count += 1
                     continue  # Retry
                 else:
@@ -315,11 +315,10 @@ async def main():
                           "Start appending to Google sheet from this row.")
                     break  # Exit loop if all is good
             else:
-                print("NOTE: Maximum retries reached for accessing Google Sheet or sequence.")
-                print("Failed to access Google Sheet or sequence after 3 retries. Stopping here.")
+                print("NOTE: Fail to access Google Sheet to get the correct first empty row after 3 retries. Stopping here.")
                 return
 
-            # 9. Append the modified table to Google Sheet
+            # 6. Append the modified table to Google Sheet
             # Read the CSV content from the file and convert to list of lists
             with open("table_output.csv", "r") as f:
                 reader = csv.reader(f)
@@ -357,16 +356,9 @@ async def main():
                         if not cell.startswith("'"):
                             row[col_idx] = f"'{cell}"
 
-            # # # Print rows for debugging
-            # for i, row in enumerate(rows[:21]):
-            #     print(f"Row {i}: {row}\n")
-            # print("...")
-
             spreadsheet_id = google_sheets_list.final_output.spreadsheet_id
             sheet_name = "ETF"
             start_row = len(google_sheets_list.final_output.D_column) + 1  # Find the first empty row in D column
-
-            # rows_to_append = [['2024-07-31', 'Task A Completed'], ['2024-08-01', 'Task B Started']]
 
             if start_row != 1:
                 # remove the header row from the rows to append
@@ -395,7 +387,7 @@ async def main():
                 )
             )
 
-            # 10. Add a gate to check if the append operation was successful
+            # 9. Add a gate to check if the append operation was successful
             assert isinstance(google_sheets_result.final_output, GoogleSheetsAppendOutput)
             if getattr(google_sheets_result.final_output, "error", None):
                 print(f"Failed to append: {google_sheets_result.final_output.error} Stop here.")
