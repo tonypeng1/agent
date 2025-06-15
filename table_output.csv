@@ -1,21 +1,21 @@
-Date,Symbol,Name,Price,Change,Change %,Volume,50 Day Average,200 Day Average,3 Month Return %,YTD Return %,52 Wk Change %
-2025-06-13 19:50:34,TSLL,Direxion Daily TSLA Bull 2X Shares,12.65,+0.46,+3.77%,238.978M,11.38,16.16,+12.35%,-45.27%,+61.03%
-2025-06-13 19:50:34,SOXL,Direxion Daily Semiconductor Bull 3X Shares,20.04,-1.65,-7.61%,165.419M,14.59,25.69,-28.63%,-40.52%,-63.91%
-2025-06-13 19:50:34,TSLZ,T-Rex 2X Inverse Tesla Daily Target ETF,1.63,-0.065,-3.83%,153.427M,2.51,5.59,-61.48%,-37.35%,-94.49%
-2025-06-13 19:50:34,SQQQ,ProShares UltraPro Short QQQ,22.76,+0.84,+3.83%,148.752M,30.11,33.06,-23.50%,-22.94%,-48.00%
-2025-06-13 19:50:34,SOXS,Direxion Daily Semiconductor Bear 3X Shares,10.17,+0.72,+7.62%,136.611M,18.53,21.23,-42.84%,-41.89%,-56.29%
-2025-06-13 19:50:34,TQQQ,ProShares UltraPro QQQ,72.83,-2.86,-3.78%,104.027M,60.41,71.73,-6.16%,-10.98%,+2.05%
-2025-06-13 19:50:34,SPXS,Direxion Daily S&P 500 Bear 3X Shares,5.28,+0.19,+3.73%,94.148M,6.39,6.41,-9.73%,-12.37%,-36.69%
-2025-06-13 19:50:34,SPY,SPDR S&P 500 ETF,597.00,-6.75,-1.12%,84.333M,564.66,578.93,-0.40%,+1.03%,+11.23%
-2025-06-13 19:50:34,IWM,iShares Russell 2000 ETF,208.89,-3.89,-1.83%,60.399M,198.90,215.84,-4.10%,-6.85%,+7.07%
-2025-06-13 19:50:34,XLF,The Financial Select Sector SPDR Fund,49.96,-1.04,-2.04%,54.768M,49.15,48.69,-2.06%,+5.82%,+25.46%
-2025-06-13 19:50:34,QQQ,Invesco QQQ Trust,526.96,-6.70,-1.26%,55.527M,489.16,498.08,+2.34%,+1.80%,+11.37%
-2025-06-13 19:50:34,TSLQ,Tradr 2X Short TSLA Daily ETF,17.94,-0.71,-3.81%,48.603M,27.53,28.28,-61.05%,-35.96%,-47.74%
-2025-06-13 19:50:34,UVXY,ProShares Ultra VIX Short-Term Futures ETF,23.22,+2.47,+11.90%,46.834M,27.87,23.95,+11.54%,+8.47%,-15.75%
-2025-06-13 19:50:34,MSTZ,T-Rex 2X Inverse MSTR Daily Target ETF,4.74,-0.09,-1.86%,44.789M,6.48,54.81,-79.73%,-81.53%,-99.01%
-2025-06-13 19:50:34,FAZ,Direxion Daily Financial Bear 3X Shares,5.14,+0.31,+6.42%,43.342M,5.48,6.22,-3.32%,-22.67%,-56.88%
-2025-06-13 19:50:34,FXI,iShares China Large-Cap ETF,36.58,-0.68,-1.82%,41.629M,34.68,32.49,-0.11%,+15.13%,+42.38%
-2025-06-13 19:50:34,AMDL,GraniteShares 2x Long AMD Daily ETF,5.81,-0.23,-3.81%,41.242M,4.82,8.39,+6.81%,-30.42%,-62.25%
-2025-06-13 19:50:34,XLE,The Energy Select Sector SPDR Fund,88.10,+1.51,+1.74%,41.778M,82.34,88.17,-9.62%,-3.96%,-1.65%
-2025-06-13 19:50:34,MSTU,T-Rex 2X Long MSTR Daily Target ETF,7.91,+0.11,+1.41%,39.985M,7.54,8.65,+51.11%,-1.06%,+205.68%
-2025-06-13 19:50:34,TLT,iShares 20+ Year Treasury Bond ETF,86.33,-0.84,-0.96%,49.121M,87.15,90.78,-5.71%,+0.02%,-7.92%
+Symbol,Name,Avg Daily Share Volume (3mo),AUM
+TSLL,Direxion Daily TSLA Bull 2X Shares,220662641,$6,403,150.00
+SOXL,Direxion Daily Semiconductor Bull 3x Shares,208715766,$12,627,400.00
+SQQQ,ProShares UltraPro Short QQQ,112558906,$3,210,090.00
+TQQQ,ProShares UltraPro QQQ,111281648,$25,394,400.00
+TSLZ,T-Rex 2X Inverse Tesla Daily Target ETF,91167172,$101,587.00
+SOXS,Direxion Daily Semiconductor Bear 3x Shares,81391039,$1,219,630.00
+SPXS,Direxion Daily S&P 500 Bear 3X Shares,80649859,$407,820.00
+SPY,SPDR S&P 500 ETF Trust,78941719,$619,279,000.00
+MSTU,T-Rex 2X Long MSTR Daily Target ETF,70160281,$1,708,110.00
+HYG,iShares iBoxx $ High Yield Corporate Bond ETF,51637500,$16,534,100.00
+QQQ,Invesco QQQ Trust Series I,51102723,$339,957,000.00
+FXI,iShares China Large-Cap ETF,46970035,$6,249,260.00
+XLF,Financial Select Sector SPDR Fund,46566910,$49,078,000.00
+IBIT,iShares Bitcoin Trust ETF,42835230,$72,549,600.00
+NVDQ,T-Rex 2X Inverse NVIDIA Daily Target ETF,41821441,$46,520.70
+TLT,iShares 20+ Year Treasury Bond ETF,41817730,$48,907,900.00
+PSLV,The Sprott Physical Silver Trust,40341688,N/A
+MSTZ,T-Rex 2X Inverse MSTR Daily Target ETF,38332500,$137,205.00
+IWM,iShares Russell 2000 ETF,34811520,$63,725,500.00
+LQD,iShares iBoxx $ Investment Grade Corporate Bond ETF,29016447,$29,059,100.00

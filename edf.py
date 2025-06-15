@@ -67,8 +67,8 @@ async def main():
 
     load_dotenv()  # Load environment variables from .env file
 
-    model = "gpt-4.1-2025-04-14"
-    # model = "gpt-4.1-mini"
+    # model = "gpt-4.1-2025-04-14"
+    model = "gpt-4.1-mini"
     # model = "o4-mini"
     api_key = os.getenv("OPENAI_API_KEY")
 
@@ -125,7 +125,7 @@ async def main():
             "- Check if the table content is valid by ensuring that it includes headers that match "
             "(case-insensitive) 'Symbol', 'Name', 'Price', 'Change', 'Change %', 'Volume', '50 Day Average', "
             "'200 Day Average', '3 Month Return', 'YTD Return', and '52 Wk Change %'. \n"
-            "- Also, ensure that the table contains at least 20 data rows (plus header row). \n"
+            "- Also, ensure that the table contains 20 data rows (plus header row). \n"
             "- Finally, Check if the number of items in the SECOND row of the table is the same as that of the header row."
         ),
         output_type=TableCheckerOutput,
@@ -139,7 +139,8 @@ async def main():
         - https://www.timeanddate.com/worldclock/usa/chicago
         - https://www.google.com/search?q=current+time+in+chicago
         Try each URL until you get a successful response. Return the date and time in the format 
-        "YYYY-MM-DD HH:mm:ss". Return both the date content and the source URL.
+        "YYYY-MM-DD HH:mm:ss". Try to convert the date to the correct format if necessary. 
+        Return both the date content and the source URL.
 
         If all API calls fail, use the local system time as a fallback.""",
         model=agent_model,
@@ -171,7 +172,7 @@ async def main():
             " Do NOT SKIP any data row, return all NON-EMPTY values in the D column in their original sequence. \n"
         ),
         output_type=GoogleSheetsListOutput,
-        model="gpt-4.1-mini",
+        model=agent_model,
         mcp_servers=[google_sheets_server],
     )
 
@@ -188,15 +189,16 @@ async def main():
         "- 'rows': a list of lists representing the table data, with the first row as headers\n"
         "Append all rows starting at the specified location. Return success status and any error message."
         ),
-        model="gpt-4.1-mini",
+        model=agent_model,
         mcp_servers=[google_sheets_server],
         output_type=GoogleSheetsAppendOutput,
     )
 
     input_prompt = (
         "Please fetch the top 20 rows of the most active ETFs from the URL "
-        "https://finance.yahoo.com/markets/etfs/most-active/ as a new table. "
-        "Do NOT fetch the last item in the headers, which is '52 Wk Range'. "
+        # "https://finance.yahoo.com/markets/etfs/most-active/ as a new table. "
+        "https://etfdb.com/compare/volume/ as a new table. "
+        # "Do NOT fetch the last item in the headers, which is '52 Wk Range'. "
         )
 
     # Ensure the entire workflow is a single trace
@@ -295,6 +297,11 @@ async def main():
                     )
                 )
 
+                print(
+                    f"The spreadsheet file '{google_sheets_list.final_output.spreadsheet_name}' "
+                    f"has an ID: {google_sheets_list.final_output.spreadsheet_id}. "
+                )
+
                 first_empty_row = len(google_sheets_list.final_output.D_column) + 1
 
                 if getattr(google_sheets_list.final_output, "error", None):
@@ -307,10 +314,6 @@ async def main():
                     retry_count += 1
                     continue  # Retry
                 else:
-                    print(
-                        f"The spreadsheet file '{google_sheets_list.final_output.spreadsheet_name}' "
-                        f"has an ID: {google_sheets_list.final_output.spreadsheet_id}. "
-                    )
                     print(f"First empty row in the sheet: {first_empty_row}. "
                           "Start appending to Google sheet from this row.")
                     break  # Exit loop if all is good
