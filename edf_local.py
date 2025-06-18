@@ -168,7 +168,7 @@ async def main():
         model=agent_model,
     )
 
-    modify_table_agent = Agent(
+    modify_etfdb_table_agent = Agent(
         name="modify_table_agent",
         instructions="Modify the table content in the .CSV file based on the user's instructions. ",
         output_type=ModifyTableContent,
@@ -207,38 +207,42 @@ async def main():
         output_type=GoogleSheetsAppendOutput,
     )
 
-    input_prompt = (
+    input_prompt_etfdb = (
         "Please fetch the top 20 rows of the most active ETFs from the URL "
-        # "https://finance.yahoo.com/markets/etfs/most-active/ as a new table. "
         "https://etfdb.com/compare/volume/ as a new table. Return the table in CSV format. "
-        # "Do NOT fetch the last item in the headers, which is '52 Wk Range'. "
+        )
+    
+    input_prompt_yahoo = (
+        "Please fetch the top 20 rows of the most active ETFs from the URL "
+        "https://finance.yahoo.com/markets/etfs/most-active/ as a new table. "
+        "Do NOT fetch the last item in the headers, which is '52 Wk Range'. "
         )
 
     # Ensure the entire workflow is a single trace
     async with web_search_and_fetch_server, google_sheets_server:
         with trace("Deterministic story flow"):
-            # 1. Fetch and Check the table content
+            # 1. Fetch and Check the table content with retry logic
             max_retries = 3
             retry_count = 0
             while retry_count < max_retries:
                 # Fetch the table content each time
-                table_result = await Runner.run(
+                table_etfdb_result = await Runner.run(
                     fetch_table_agent,
-                    input_prompt,
+                    input_prompt_etfdb,
                 )
-                print(f"Table content fetched: {table_result.final_output.csv_content[:70]}...")
-                print(f"Source URL: {table_result.final_output.source_url}")
+                print(f"Table content fetched: {table_etfdb_result.final_output.csv_content[:70]}...")
+                print(f"Source URL: {table_etfdb_result.final_output.source_url}")
 
-                csv_content = table_result.final_output.csv_content
-                # Optionally save to file
+                csv_content = table_etfdb_result.final_output.csv_content
+                
                 with open("table_output.csv", "w") as f:
                     f.write(csv_content)
 
                 table_etfdb_checker_result = await Runner.run(
                     table_etfdb_checker_agent,
                     f"""Please check the following table content:
-                    CSV Content: {table_result.final_output.csv_content}
-                    Source URL: {table_result.final_output.source_url}
+                    CSV Content: {table_etfdb_result.final_output.csv_content}
+                    Source URL: {table_etfdb_result.final_output.source_url}
                     """,
                 )
 
@@ -278,39 +282,43 @@ async def main():
                 )
 
                 assert isinstance(date_checker_result.final_output, DateCheckerOutput)
-                if date_checker_result.final_output.is_valid:
-                    print("Date content's format is valid, so we continue to check the Google Spreadsheet.")
-                    break
-                
-                retry_count += 1
-                print(f"Date format is not valid (Attempt {retry_count}/{max_retries}). Reason: {date_checker_result.final_output.reason}")
-                await asyncio.sleep(1)  # Add a short delay between retries
-            
-            if retry_count == max_retries:
-                print("Maximum retries reached. Stopping execution.")
-                return
-
-            assert isinstance(date_checker_result.final_output, DateCheckerOutput)
-            if not date_checker_result.final_output.is_valid:
-                print(f"Date format is not valid so we stop here. The reason is: {date_checker_result.final_output.reason}")
-                return
-            print("Date content's format is valid, so we continue to add this date as the first column in the table.")
+                if not date_checker_result.final_output.is_valid:
+                    print(f"Date format is not valid (attempt {retry_count+1}/3). "
+                          f"The reason is: {date_checker_result.final_output.reason}")
+                    retry_count += 1
+                    if retry_count == max_retries:
+                        print("Date format is not valid after 3 attempts. Stopping here.")
+                        return
+                    print("Retrying date fetch and check...")
+                    await asyncio.sleep(1)  # Add a short delay between retries
+                    continue
+                print("Date content's format is valid, so we continue to add this date as the first column in the table.")
+                break
 
             # 4. Modify the table content to add the current date
-            modify_table_result = await Runner.run(
-                modify_table_agent,
+            modify_table_etfdb_result = await Runner.run(
+                modify_etfdb_table_agent,
                 f"""Please add a new column with the name “Date” as the first column of the table, 
                 and add the current date and time you just found as the value in each row.
-                Please also change the header '3 Month Return' to '3 Month Return %'  
-                and 'YTD Return' to 'YTD Return %'.
-                CSV table Content: {table_result.final_output.csv_content} 
+                CSV table Content: {table_etfdb_result.final_output.csv_content} 
                 Current Date: {fetch_date_result.final_output.date_content}
                 """,
             )
 
-            print(f"Modified table content: {modify_table_result.final_output.csv_content[:80]}...")
+            # modify_table_result = await Runner.run(
+            #     modify_table_agent,
+            #     f"""Please add a new column with the name “Date” as the first column of the table, 
+            #     and add the current date and time you just found as the value in each row.
+            #     Please also change the header '3 Month Return' to '3 Month Return %'  
+            #     and 'YTD Return' to 'YTD Return %'.
+            #     CSV table Content: {table_yahoo_result.final_output.csv_content} 
+            #     Current Date: {fetch_date_result.final_output.date_content}
+            #     """,
+            # )
 
-            modify_csv_content = modify_table_result.final_output.csv_content
+            print(f"Modified table content: {modify_table_etfdb_result.final_output.csv_content[:80]}...")
+
+            modify_csv_content = modify_table_etfdb_result.final_output.csv_content
             # Save to file
             with open("table_output.csv", "w") as f:
                 f.write(modify_csv_content)
