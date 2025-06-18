@@ -111,15 +111,28 @@ async def main():
     fetch_table_agent = Agent(
         name="fetch_table_agent",
         instructions="""Fetch the table content of an URL based on the user's input.
-        Extract tables from the webpage and format them as CSV. 
-        Return both the CSV content and the source URL.""",
+        Extract tables from the webpage and remove the comma marks if they exist. Then 
+        format them as CSV and return both the CSV content and the source URL.""",
         model=agent_model,
         output_type=TableContent,
         mcp_servers=[web_search_and_fetch_server],
     )
 
-    table_checker_agent = Agent(
-        name="table_checker_agent",
+    table_etfdb_checker_agent = Agent(
+        name="table_etfdb_checker_agent",
+        instructions=(
+            "Perform the following tasks: \n"
+            "- Check if the table content is valid by ensuring that it includes headers that match "
+            "(case-insensitive) 'Symbol', 'Name', 'Avg Daily Share Volume (3mo)', and 'AUM'. \n"
+            "- Also, ensure that the table contains 20 data rows (plus header row). \n"
+            "- Finally, Check if the number of items in the SECOND row of the table is the same as that of the header row."
+        ),
+        output_type=TableCheckerOutput,
+        model=agent_model,
+    )
+
+    table_yahoo_checker_agent = Agent(
+        name="table_yahoo_checker_agent",
         instructions=(
             "Perform the following tasks: \n"
             "- Check if the table content is valid by ensuring that it includes headers that match "
@@ -205,9 +218,9 @@ async def main():
     async with web_search_and_fetch_server, google_sheets_server:
         with trace("Deterministic story flow"):
             # 1. Fetch and Check the table content
-            max_table_checker_retries = 3
-            table_checker_retry_count = 0
-            while table_checker_retry_count < max_table_checker_retries:
+            max_retries = 3
+            retry_count = 0
+            while retry_count < max_retries:
                 # Fetch the table content each time
                 table_result = await Runner.run(
                     fetch_table_agent,
@@ -221,8 +234,8 @@ async def main():
                 with open("table_output.csv", "w") as f:
                     f.write(csv_content)
 
-                table_checker_result = await Runner.run(
-                    table_checker_agent,
+                table_etfdb_checker_result = await Runner.run(
+                    table_etfdb_checker_agent,
                     f"""Please check the following table content:
                     CSV Content: {table_result.final_output.csv_content}
                     Source URL: {table_result.final_output.source_url}
@@ -230,11 +243,12 @@ async def main():
                 )
 
                 # Add a gate to stop if the table content has some issues
-                assert isinstance(table_checker_result.final_output, TableCheckerOutput)
-                if not table_checker_result.final_output.is_valid:
-                    print(f"Table content is not valid (attempt {table_checker_retry_count+1}/3). The reason is: {table_checker_result.final_output.reason}")
-                    table_checker_retry_count += 1
-                    if table_checker_retry_count == max_table_checker_retries:
+                assert isinstance(table_etfdb_checker_result.final_output, TableCheckerOutput)
+                if not table_etfdb_checker_result.final_output.is_valid:
+                    print(f"Table content is not valid (attempt {retry_count+1}/3). "
+                          f"The reason is: {table_etfdb_checker_result.final_output.reason}")
+                    retry_count += 1
+                    if retry_count == max_retries:
                         print("Table content is not valid after 3 attempts. Stopping here.")
                         return
                     print("Retrying table fetch and check...")
@@ -242,22 +256,39 @@ async def main():
                 print("Table content is valid, so we continue to fetch the current date.")
                 break
 
-            # 2. Fetch the current date and time
-            fetch_date_result = await Runner.run(
-                fetch_date_agent,
-                "Fetch the current date and time.",
-            )
-            print(f"Current date and time fetched: {fetch_date_result.final_output.date_content}")
-            print(f"Source URL: {fetch_date_result.final_output.source_url}")
+            # 2. Fetch the current date and time with retry logic
+            max_retries = 3
+            retry_count = 0
+            
+            while retry_count < max_retries:
+                fetch_date_result = await Runner.run(
+                    fetch_date_agent,
+                    "Fetch the current date and time.",
+                )
+                print(f"Current date and time fetched: {fetch_date_result.final_output.date_content}")
+                print(f"Source URL: {fetch_date_result.final_output.source_url}")
 
-            # 3. Add a gate to stop if the table content's format is not valid
-            date_checker_result = await Runner.run(
-                date_checker_agent,
-                f"""Please check the following date content:
-                Date Content: {fetch_date_result.final_output.date_content}
-                Source URL: {fetch_date_result.final_output.source_url}
-                """,
-            )
+                # 2. Check if the date format is valid
+                date_checker_result = await Runner.run(
+                    date_checker_agent,
+                    f"""Please check the following date content:
+                    Date Content: {fetch_date_result.final_output.date_content}
+                    Source URL: {fetch_date_result.final_output.source_url}
+                    """,
+                )
+
+                assert isinstance(date_checker_result.final_output, DateCheckerOutput)
+                if date_checker_result.final_output.is_valid:
+                    print("Date content's format is valid, so we continue to check the Google Spreadsheet.")
+                    break
+                
+                retry_count += 1
+                print(f"Date format is not valid (Attempt {retry_count}/{max_retries}). Reason: {date_checker_result.final_output.reason}")
+                await asyncio.sleep(1)  # Add a short delay between retries
+            
+            if retry_count == max_retries:
+                print("Maximum retries reached. Stopping execution.")
+                return
 
             assert isinstance(date_checker_result.final_output, DateCheckerOutput)
             if not date_checker_result.final_output.is_valid:
