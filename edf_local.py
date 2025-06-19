@@ -175,37 +175,6 @@ async def main():
         model=agent_model,
     )
 
-    google_sheet_list_agent = Agent(
-        name="google_sheet_list_agent",
-        instructions=(
-            "Perform the following tasks: \n"
-            "- Find if a Google spreadsheet file is available in the configured Google Drive you have access to. \n"
-            "- If yes, return its name and spreadsheet ID. \n"
-            "- Also, return the data from 'D' column of the sheet user specified. \n" 
-            " Do NOT SKIP any data row, return all NON-EMPTY values in the D column in their original sequence. \n"
-        ),
-        output_type=GoogleSheetsListOutput,
-        model=agent_model,
-        mcp_servers=[google_sheets_server],
-    )
-
-    google_sheet_agent = Agent(
-        name="google_sheet_agent",
-        instructions=(
-        "Append the provided rows to the specified sheet in the given Google Spreadsheet. "
-        "Use the following input fields:\n"
-        "- 'spreadsheet_id': the ID of the target spreadsheet\n"
-        "- 'sheet_name': the name of the target sheet\n"
-        "- 'start_row': the row number to start appending (1-based)\n"
-        "- 'start_col': the column letter to start appending (e.g., 'A')\n"
-        "- 'end_col': the column letter to end appending (e.g., 'L')\n"
-        "- 'rows': a list of lists representing the table data, with the first row as headers\n"
-        "Append all rows starting at the specified location. Return success status and any error message."
-        ),
-        model=agent_model,
-        mcp_servers=[google_sheets_server],
-        output_type=GoogleSheetsAppendOutput,
-    )
 
     input_prompt_etfdb = (
         "Please fetch the top 20 rows of the most active ETFs from the URL "
@@ -235,7 +204,7 @@ async def main():
 
                 csv_content = table_etfdb_result.final_output.csv_content
                 
-                with open("table_output.csv", "w") as f:
+                with open("table_output_raw.csv", "w") as f:
                     f.write(csv_content)
 
                 table_etfdb_checker_result = await Runner.run(
@@ -295,7 +264,7 @@ async def main():
                 print("Date content's format is valid, so we continue to add this date as the first column in the table.")
                 break
 
-            # 4. Modify the table content to add the current date
+            # 3. Modify the table content to add the current date
             modify_table_etfdb_result = await Runner.run(
                 modify_etfdb_table_agent,
                 f"""Please add a new column with the name “Date” as the first column of the table, 
@@ -317,48 +286,22 @@ async def main():
             # )
 
             print(f"Modified table content: {modify_table_etfdb_result.final_output.csv_content[:80]}...")
-
             modify_csv_content = modify_table_etfdb_result.final_output.csv_content
-            # Save to file
-            with open("table_output.csv", "w") as f:
-                f.write(modify_csv_content)
 
-            # 5. Check if the Google Spreadsheet file is accessible and the first empty row is in a possible value group
-            max_retries = 3
-            retry_count = 0
-            while retry_count < max_retries:
-                google_sheets_list = await Runner.run(
-                    google_sheet_list_agent,
-                    (
-                        "Please check if the spreadsheet with the name 'Yahoo ETF' is available. If yes, check the sheet "
-                        "'ETF' in the spreadsheet and return the spreadsheet name, ID, the data from all cells in the D column. "
-                        "Do NOT SKIP any data, return all NON-EMPTY values in the D column in their original sequence. "
-                    )
-                )
+            # 5. Save or append the modified table content to a CSV file
 
-                print(
-                    f"The spreadsheet file '{google_sheets_list.final_output.spreadsheet_name}' "
-                    f"has an ID: {google_sheets_list.final_output.spreadsheet_id}. "
-                )
-
-                first_empty_row = len(google_sheets_list.final_output.D_column) + 1
-
-                if getattr(google_sheets_list.final_output, "error", None):
-                    print(f"Google Sheets access error: {google_sheets_list.final_output.error}. Retrying...")
-                    retry_count += 1
-                    continue  # Retry
-                elif not is_in_correct_group(first_empty_row):
-                    print(f"Current first empty row in the D column: {first_empty_row},"
-                          " which is not in the correct group of 1, 22, 42, 62, etc. Retrying...")
-                    retry_count += 1
-                    continue  # Retry
+            # Check if file exists to handle headers appropriately
+            file_exists = os.path.isfile("table_output.csv")
+            with open("table_output.csv", "a") as f:
+                # If file exists, skip the header line
+                if file_exists:
+                    # Split content into lines and remove header
+                    content_lines = modify_csv_content.split('\n')
+                    content_without_header = '\n'.join(content_lines[1:])
+                    f.write('\n' + content_without_header)
                 else:
-                    print(f"First empty row in the sheet: {first_empty_row}. "
-                          "Start appending to Google sheet from this row.")
-                    break  # Exit loop if all is good
-            else:
-                print("NOTE: Fail to access Google Sheet to get the correct first empty row after 3 retries. Stopping here.")
-                return
+                    f.write(modify_csv_content)
+
 
             # 6. Append the modified table to Google Sheet
             # Read the CSV content from the file and convert to list of lists
@@ -398,44 +341,9 @@ async def main():
                         if not cell.startswith("'"):
                             row[col_idx] = f"'{cell}"
 
-            spreadsheet_id = google_sheets_list.final_output.spreadsheet_id
-            sheet_name = "ETF"
-            start_row = len(google_sheets_list.final_output.D_column) + 1  # Find the first empty row in D column
-
-            if start_row != 1:
-                # remove the header row from the rows to append
-                rows = rows[1:]
-            else:
-                # If the first empty row is 1, we assume the header row is not present
-                # and we need to append the header row as well
-                rows = rows
-
-            input_data = {
-                "spreadsheet_id": spreadsheet_id,
-                "sheet_name": sheet_name,
-                "start_row": start_row,
-                "end_row": start_row + len(rows) - 1,
-                "start_col": "A",
-                "end_col": "L",
-                "rows": rows
-            }
-            google_sheets_result = await Runner.run(
-                google_sheet_agent,
-                (
-                    f"Please append the {input_data['rows']} to the Google Spreadsheet with ID "
-                    f"'{input_data['spreadsheet_id']}' in the sheet '{input_data['sheet_name']}' "
-                    f"starting at row {input_data['start_row']} and column {input_data['start_col']} "
-                    f"and ending at row {input_data['end_row']} and column {input_data['end_col']}."
-                )
-            )
-
-            # 9. Add a gate to check if the append operation was successful
-            assert isinstance(google_sheets_result.final_output, GoogleSheetsAppendOutput)
-            if getattr(google_sheets_result.final_output, "error", None):
-                print(f"Failed to append: {google_sheets_result.final_output.error} Stop here.")
-                return
-
             print("Successfully appended the table to the Google Sheet.")
+
+
 
 
 if __name__ == "__main__":

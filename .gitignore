@@ -8,6 +8,7 @@ wheels/
 .DS_Store
 logs/
 write-story.py
+table_output_raw.csv
 
 # Virtual environments and environment variables
 .venv
