@@ -30,25 +30,6 @@ class DateCheckerOutput(BaseModel):
 class ModifyTableContent(BaseModel):
     csv_content: str
 
-class GoogleSheetsListOutput(BaseModel):
-    spreadsheet_name: str
-    spreadsheet_id: str
-    D_column: list[str]  # Specify the type of items in the list
-    # first_empty_row: int  # Specify the type of items in the list
-    error: str = None  # Optional error message
-
-class GoogleSheetsAppendOutput(BaseModel):
-    success: bool
-    error: str = None # Optional error message
-    
-
-def is_in_correct_group(n):
-    if n == 1:
-        return True
-    if n < 22:
-        return False
-    return (n - 22) % 20 == 0
-
 
 async def main():
     """
@@ -88,25 +69,6 @@ async def main():
         client_session_timeout_seconds=5
     )
 
-    google_sheets_server = MCPServerStdio(
-        params={
-            "name": "mcp-google-sheets",
-            "key": "McpGoogleSheets",
-            "description": "Access Google drive",
-            "command": "uvx",
-            "args": [
-                "mcp-google-sheets"
-            ],
-            "env": {
-                "SERVICE_ACCOUNT_PATH": "/Users/tony3/Documents/endless-science-458714-i5-82adc8d5f14f.json",
-                "DRIVE_FOLDER_ID": "18yoPfDe6nkHZDYu6MJl6eqYKh-MyJGbK"
-                }
-            },
-        name="mcp-google-sheets",
-        client_session_timeout_seconds=5,
-        cache_tools_list=False
-    )
-
     # Define agents
     fetch_table_agent = Agent(
         name="fetch_table_agent",
@@ -125,7 +87,8 @@ async def main():
             "- Check if the table content is valid by ensuring that it includes headers that match "
             "(case-insensitive) 'Symbol', 'Name', 'Avg Daily Share Volume (3mo)', and 'AUM'. \n"
             "- Also, ensure that the table contains 20 data rows (plus header row). \n"
-            "- Finally, Check if the number of items in the SECOND row of the table is the same as that of the header row."
+            "- Finally, Check if the number of items in the SECOND row of the table is the same as that "
+            "of the header row."
         ),
         output_type=TableCheckerOutput,
         model=agent_model,
@@ -188,7 +151,7 @@ async def main():
         )
 
     # Ensure the entire workflow is a single trace
-    async with web_search_and_fetch_server, google_sheets_server:
+    async with web_search_and_fetch_server:
         with trace("Deterministic story flow"):
             # 1. Fetch and Check the table content with retry logic
             max_retries = 3
@@ -204,7 +167,7 @@ async def main():
 
                 csv_content = table_etfdb_result.final_output.csv_content
                 
-                with open("table_output_raw.csv", "w") as f:
+                with open("table_etfdb_output_raw.csv", "w") as f:
                     f.write(csv_content)
 
                 table_etfdb_checker_result = await Runner.run(
@@ -289,10 +252,9 @@ async def main():
             modify_csv_content = modify_table_etfdb_result.final_output.csv_content
 
             # 5. Save or append the modified table content to a CSV file
-
             # Check if file exists to handle headers appropriately
-            file_exists = os.path.isfile("table_output.csv")
-            with open("table_output.csv", "a") as f:
+            file_exists = os.path.isfile("table_etfdb_output.csv")
+            with open("table_etfdb_output.csv", "a") as f:
                 # If file exists, skip the header line
                 if file_exists:
                     # Split content into lines and remove header
@@ -302,44 +264,6 @@ async def main():
                 else:
                     f.write(modify_csv_content)
 
-
-            # 6. Append the modified table to Google Sheet
-            # Read the CSV content from the file and convert to list of lists
-            with open("table_output.csv", "r") as f:
-                reader = csv.reader(f)
-                rows = list(reader)
-
-            # Convert percentage columns to string with '%' before uploading to Google sheet
-            # to avoid issues with Google sheet converting them to numbers.
-            percent_headers = [i for i, h in enumerate(rows[0]) if h.strip().endswith('%')]
-            # Also convert the "Volume" column to string
-            volume_idx = next((i for i, h in enumerate(rows[0]) if h.strip().lower() == "volume"), None)
-            columns_to_string = percent_headers.copy()
-            if volume_idx is not None:
-                columns_to_string.append(volume_idx)
-
-            for row_idx, row in enumerate(rows):
-                for col_idx in columns_to_string:
-                    if row_idx == 0:
-                        continue  # Skip header
-                    cell = row[col_idx]
-                    # Handle percent columns
-                    if col_idx in percent_headers:
-                        # Always force as string with percent sign, prefixed with a single quote
-                        if not cell.endswith('%'):
-                            try:
-                                val = float(cell)
-                                row[col_idx] = f"'{val * 100:.2f}%"
-                            except Exception:
-                                row[col_idx] = f"'{cell}" if not cell.startswith("'") else cell
-                        else:
-                            # If already percent, still prefix with single quote if not present
-                            if not cell.startswith("'"):
-                                row[col_idx] = f"'{cell}"
-                    # Handle Volume column
-                    elif col_idx == volume_idx:
-                        if not cell.startswith("'"):
-                            row[col_idx] = f"'{cell}"
 
             print("Successfully appended the table to the Google Sheet.")
 
