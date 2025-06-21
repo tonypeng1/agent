@@ -30,6 +30,13 @@ class DateCheckerOutput(BaseModel):
 class ModifyTableContent(BaseModel):
     csv_content: str
 
+class FilteredTableOutput(BaseModel):
+    filtered_rows_present: list[list[str]]
+    filtered_rows_earlier: list[list[str]]
+
+class ETFTrendAnalysisOutput(BaseModel):
+    summary: str
+
 
 async def main():
     """
@@ -53,11 +60,12 @@ async def main():
     # model = "o4-mini"
     api_key = os.getenv("OPENAI_API_KEY")
 
-    # model = "anthropic/claude-3-7-sonnet-20250219"
-    # model = "anthropic/claude-3-5-sonnet-20240620"
-    # api_key = os.getenv("ANTHROPIC_API_KEY")
+    # model_anthropic = "anthropic/claude-3-7-sonnet-20250219"
+    model_anthropic = "anthropic/claude-3-5-sonnet-20240620"
+    api_key_anthropic = os.getenv("ANTHROPIC_API_KEY")
 
     agent_model=LitellmModel(model=model, api_key=api_key)
+    agent_model_anthropic=LitellmModel(model=model_anthropic, api_key=api_key_anthropic)
 
     # Create MCP servers using native OpenAI Agents SDK
     web_search_and_fetch_server = MCPServerStdio(
@@ -138,6 +146,38 @@ async def main():
         model=agent_model,
     )
 
+    filter_by_date_agent = Agent(
+        name="filter_by_date_agent",
+        instructions=(
+            "Given a table in list-of-lists format (first row is header) and a target date string, "
+            "filter the table to only include rows where the 'Date' column matches the target date exactly. "
+            "If there is no exact match, return the rows with the closest date (by time difference) to the target date. "
+            "Return these filtered rows, including the header, as a list of lists and save them in the field 'filtered_rows_present'.\n\n"
+            "Additionally, filter the table by another target date that is about a week earlier than the given target date. "
+            "If there are no dates at least a week earlier, choose the earliest available date in the table. "
+            "Return these filtered rows, including the header, as a list of lists and save them in the field 'filtered_rows_earlier'.\n\n"
+            "**IMPORTANT:** Return a valid JSON object. The values for 'filtered_rows_present' and 'filtered_rows_earlier' must be JSON arrays (not strings). Example:\n"
+            "{\n"
+            '  "filtered_rows_present": [["Date", "Symbol", ...], ["2025-06-20", "TSLL", ...]],\n'
+            '  "filtered_rows_earlier": [["Date", "Symbol", ...], ["2025-06-13", "TSLL", ...]]\n'
+            "}"
+        ),
+        model=agent_model_anthropic,
+        output_type=FilteredTableOutput,
+    )
+
+    analyze_etf_trends_agent = Agent(
+        name="analyze_etf_trends_agent",
+        instructions=(
+            "Compare the two tables: 'filtered_rows_present' and 'filtered_rows_earlier'. "
+            "Analyze the trends in ETF activity, such as changes in volume, rankings, or other notable differences. "
+            "Summarize your findings in a concise paragraph. Make sure to mention the dates of the two tables in your analysis. "
+            "Return the summary in the field 'summary'."
+        ),
+        model=agent_model_anthropic,
+        output_type=ETFTrendAnalysisOutput,
+    )
+
 
     input_prompt_etfdb = (
         "Please fetch the top 20 rows of the most active ETFs from the URL "
@@ -189,7 +229,7 @@ async def main():
                         return
                     print("Retrying table fetch and check...")
                     continue
-                print("Table content is valid, so we continue to fetch the current date.")
+                print("\nTable content is valid, so we continue to fetch the current date.")
                 break
 
             # 2. Fetch the current date and time with retry logic
@@ -201,7 +241,7 @@ async def main():
                     fetch_date_agent,
                     "Fetch the current date and time.",
                 )
-                print(f"Current date and time fetched: {fetch_date_result.final_output.date_content}")
+                print(f"\nCurrent date and time fetched: {fetch_date_result.final_output.date_content}")
                 print(f"Source URL: {fetch_date_result.final_output.source_url}")
 
                 # 2. Check if the date format is valid
@@ -224,7 +264,9 @@ async def main():
                     print("Retrying date fetch and check...")
                     await asyncio.sleep(1)  # Add a short delay between retries
                     continue
-                print("Date content's format is valid, so we continue to add this date as the first column in the table.")
+                print(("\nDate content's format is valid. \n"
+                       "Start adding this date as the first column in the table...")
+                )
                 break
 
             # 3. Modify the table content to add the current date
@@ -248,10 +290,10 @@ async def main():
             #     """,
             # )
 
-            print(f"Modified table content: {modify_table_etfdb_result.final_output.csv_content[:80]}...")
+            print(f"\nModified table content: {modify_table_etfdb_result.final_output.csv_content[:80]}...")
             modify_csv_content = modify_table_etfdb_result.final_output.csv_content
 
-            # 5. Save or append the modified table content to a CSV file
+            # Save or append the modified table content to a CSV file
             # Check if file exists to handle headers appropriately
             file_exists = os.path.isfile("table_etfdb_output.csv")
             with open("table_etfdb_output.csv", "a") as f:
@@ -264,10 +306,45 @@ async def main():
                 else:
                     f.write(modify_csv_content)
 
+            print("\nSuccessfully appended the modified table to the file 'table_etfdb_output.csv.'")
 
-            print("Successfully appended the table to the Google Sheet.")
+            # 4. Load the modified table content from the CSV file and perform ETF trend analysis
+            # Load the modified table content from the CSV file
+            with open("table_etfdb_output.csv", "r") as f:
+                reader = csv.reader(f)
+                modified_table_content = list(reader)
+            print(
+                (f"Modified table content loaded from file: {modified_table_content[:2]}...\n"
+                 "\nStart filering the table by dates...")
+            )
 
+            # Filter the table by a specific date
+            target_date = fetch_date_result.final_output.date_content
+            filtered_table_result = await Runner.run(
+                filter_by_date_agent,
+                f"""Please filter the following table content by the target date:
+                    "table": {modified_table_content}
+                    "target Date": {target_date}
+                    """,
+            )
 
+            filtered_rows_present = filtered_table_result.final_output.filtered_rows_present
+            filtered_rows_earlier = filtered_table_result.final_output.filtered_rows_earlier
+            print(f"\nFiltered table content (present): {filtered_rows_present[:3]}...")
+            print(f"\nFiltered table content (earlier): {filtered_rows_earlier[:3]}...")
+            print("\nStart ETF trend analysis...")
+
+            # 5. Analyze ETF trends
+            trend_analysis_result = await Runner.run(
+                analyze_etf_trends_agent,
+                f"""Please analyze the trends in ETF activity based on the following two tables:
+                    "filtered_rows_present": {filtered_rows_present},
+                    "filtered_rows_earlier": {filtered_rows_earlier}
+                    """,
+            )
+            print("\nETF Trend Analysis:\n")
+            print(trend_analysis_result.final_output.summary)
+            print("\n\nEnd of the deterministic story flow.\n")
 
 
 if __name__ == "__main__":
