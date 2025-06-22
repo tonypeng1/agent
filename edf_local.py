@@ -104,20 +104,6 @@ async def main():
         model=agent_model,
     )
 
-    table_yahoo_checker_agent = Agent(
-        name="table_yahoo_checker_agent",
-        instructions=(
-            "Perform the following tasks: \n"
-            "- Check if the table content is valid by ensuring that it includes headers that match "
-            "(case-insensitive) 'Symbol', 'Name', 'Price', 'Change', 'Change %', 'Volume', '50 Day Average', "
-            "'200 Day Average', '3 Month Return', 'YTD Return', and '52 Wk Change %'. \n"
-            "- Also, ensure that the table contains 20 data rows (plus header row). \n"
-            "- Finally, Check if the number of items in the SECOND row of the table is the same as that of the header row."
-        ),
-        output_type=TableCheckerOutput,
-        model=agent_model,
-    )
-
     # 3. Fetch current date and time agent
     fetch_date_agent = Agent(
         name="fetch_date_agent",
@@ -186,16 +172,9 @@ async def main():
         output_type=ETFTrendAnalysisOutput,
     )
 
-
     input_prompt_etfdb = (
         "Please fetch the top 20 rows of the most active ETFs from the URL "
         "https://etfdb.com/compare/volume/ as a new table. Return the table in CSV format. "
-        )
-    
-    input_prompt_yahoo = (
-        "Please fetch the top 20 rows of the most active ETFs from the URL "
-        "https://finance.yahoo.com/markets/etfs/most-active/ as a new table. "
-        "Do NOT fetch the last item in the headers, which is '52 Wk Range'. "
         )
 
     # Ensure the entire workflow is a single trace
@@ -286,17 +265,6 @@ async def main():
                 Current Date: {fetch_date_result.final_output.date_content}
                 """,
             )
-
-            # modify_table_result = await Runner.run(
-            #     modify_table_agent,
-            #     f"""Please add a new column with the name “Date” as the first column of the table, 
-            #     and add the current date and time you just found as the value in each row.
-            #     Please also change the header '3 Month Return' to '3 Month Return %'  
-            #     and 'YTD Return' to 'YTD Return %'.
-            #     CSV table Content: {table_yahoo_result.final_output.csv_content} 
-            #     Current Date: {fetch_date_result.final_output.date_content}
-            #     """,
-            # )
 
             print(f"\nModified table content: {modify_table_etfdb_result.final_output.csv_content[:80]}...")
             modify_csv_content = modify_table_etfdb_result.final_output.csv_content
