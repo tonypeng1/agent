@@ -201,44 +201,44 @@ async def main():
     # Ensure the entire workflow is a single trace
     async with web_search_and_fetch_server:
         with trace("Deterministic story flow"):
-            # 1. Fetch and Check the table content with retry logic
-            max_retries = 3
-            retry_count = 0
-            while retry_count < max_retries:
-                # Fetch the table content each time
-                table_etfdb_result = await Runner.run(
-                    fetch_table_agent,
-                    input_prompt_etfdb,
-                )
-                print(f"Table content fetched: {table_etfdb_result.final_output.csv_content[:70]}...")
-                print(f"Source URL: {table_etfdb_result.final_output.source_url}")
+            # # 1. Fetch and Check the table content with retry logic
+            # max_retries = 3
+            # retry_count = 0
+            # while retry_count < max_retries:
+            #     # Fetch the table content each time
+            #     table_etfdb_result = await Runner.run(
+            #         fetch_table_agent,
+            #         input_prompt_etfdb,
+            #     )
+            #     print(f"Table content fetched: {table_etfdb_result.final_output.csv_content[:70]}...")
+            #     print(f"Source URL: {table_etfdb_result.final_output.source_url}")
 
-                csv_content = table_etfdb_result.final_output.csv_content
+            #     csv_content = table_etfdb_result.final_output.csv_content
                 
-                with open("table_etfdb_output_raw.csv", "w") as f:
-                    f.write(csv_content)
+            #     with open("table_etfdb_output_raw.csv", "w") as f:
+            #         f.write(csv_content)
 
-                table_etfdb_checker_result = await Runner.run(
-                    table_etfdb_checker_agent,
-                    f"""Please check the following table content:
-                    CSV Content: {table_etfdb_result.final_output.csv_content}
-                    Source URL: {table_etfdb_result.final_output.source_url}
-                    """,
-                )
+            #     table_etfdb_checker_result = await Runner.run(
+            #         table_etfdb_checker_agent,
+            #         f"""Please check the following table content:
+            #         CSV Content: {table_etfdb_result.final_output.csv_content}
+            #         Source URL: {table_etfdb_result.final_output.source_url}
+            #         """,
+            #     )
 
-                # Add a gate to stop if the table content has some issues
-                assert isinstance(table_etfdb_checker_result.final_output, TableCheckerOutput)
-                if not table_etfdb_checker_result.final_output.is_valid:
-                    print(f"Table content is not valid (attempt {retry_count+1}/3). "
-                          f"The reason is: {table_etfdb_checker_result.final_output.reason}")
-                    retry_count += 1
-                    if retry_count == max_retries:
-                        print("Table content is not valid after 3 attempts. Stopping here.")
-                        return
-                    print("Retrying table fetch and check...")
-                    continue
-                print("\nTable content is valid, so we continue to fetch the current date.")
-                break
+            #     # Add a gate to stop if the table content has some issues
+            #     assert isinstance(table_etfdb_checker_result.final_output, TableCheckerOutput)
+            #     if not table_etfdb_checker_result.final_output.is_valid:
+            #         print(f"Table content is not valid (attempt {retry_count+1}/3). "
+            #               f"The reason is: {table_etfdb_checker_result.final_output.reason}")
+            #         retry_count += 1
+            #         if retry_count == max_retries:
+            #             print("Table content is not valid after 3 attempts. Stopping here.")
+            #             return
+            #         print("Retrying table fetch and check...")
+            #         continue
+            #     print("\nTable content is valid, so we continue to fetch the current date.")
+            #     break
 
             # 2. Fetch the current date and time with retry logic
             max_retries = 3
@@ -277,44 +277,44 @@ async def main():
                 )
                 break
 
-            # 3. Modify the table content to add the current date
-            modify_table_etfdb_result = await Runner.run(
-                modify_etfdb_table_agent,
-                f"""Please add a new column with the name “Date” as the first column of the table, 
-                and add the current date and time you just found as the value in each row.
-                CSV table Content: {table_etfdb_result.final_output.csv_content} 
-                Current Date: {fetch_date_result.final_output.date_content}
-                """,
-            )
-
-            # modify_table_result = await Runner.run(
-            #     modify_table_agent,
+            # # 3. Modify the table content to add the current date
+            # modify_table_etfdb_result = await Runner.run(
+            #     modify_etfdb_table_agent,
             #     f"""Please add a new column with the name “Date” as the first column of the table, 
             #     and add the current date and time you just found as the value in each row.
-            #     Please also change the header '3 Month Return' to '3 Month Return %'  
-            #     and 'YTD Return' to 'YTD Return %'.
-            #     CSV table Content: {table_yahoo_result.final_output.csv_content} 
+            #     CSV table Content: {table_etfdb_result.final_output.csv_content} 
             #     Current Date: {fetch_date_result.final_output.date_content}
             #     """,
             # )
 
-            print(f"\nModified table content: {modify_table_etfdb_result.final_output.csv_content[:80]}...")
-            modify_csv_content = modify_table_etfdb_result.final_output.csv_content
+            # # modify_table_result = await Runner.run(
+            # #     modify_table_agent,
+            # #     f"""Please add a new column with the name “Date” as the first column of the table, 
+            # #     and add the current date and time you just found as the value in each row.
+            # #     Please also change the header '3 Month Return' to '3 Month Return %'  
+            # #     and 'YTD Return' to 'YTD Return %'.
+            # #     CSV table Content: {table_yahoo_result.final_output.csv_content} 
+            # #     Current Date: {fetch_date_result.final_output.date_content}
+            # #     """,
+            # # )
 
-            # Save or append the modified table content to a CSV file by Checking if the file exists and
-            # handle headers appropriately
-            file_exists = os.path.isfile("table_etfdb_output.csv")
-            with open("table_etfdb_output.csv", "a") as f:
-                # If file exists, skip the header line
-                if file_exists:
-                    # Split content into lines and remove header
-                    content_lines = modify_csv_content.split('\n')
-                    content_without_header = '\n'.join(content_lines[1:])
-                    f.write('\n' + content_without_header)
-                else:
-                    f.write(modify_csv_content)
+            # print(f"\nModified table content: {modify_table_etfdb_result.final_output.csv_content[:80]}...")
+            # modify_csv_content = modify_table_etfdb_result.final_output.csv_content
 
-            print("\nSuccessfully appended the modified table to the file 'table_etfdb_output.csv.'")
+            # # Save or append the modified table content to a CSV file by Checking if the file exists to
+            # # handle headers appropriately
+            # file_exists = os.path.isfile("table_etfdb_output.csv")
+            # with open("table_etfdb_output.csv", "a") as f:
+            #     # If file exists, skip the header line
+            #     if file_exists:
+            #         # Split content into lines and remove header
+            #         content_lines = modify_csv_content.split('\n')
+            #         content_without_header = '\n'.join(content_lines[1:])
+            #         f.write('\n' + content_without_header)
+            #     else:
+            #         f.write(modify_csv_content)
+
+            # print("\nSuccessfully appended the modified table to the file 'table_etfdb_output.csv.'")
 
             # 4. Load the modified table and filter the table by a specific date with retry logic
             with open("table_etfdb_output.csv", "r") as f:
