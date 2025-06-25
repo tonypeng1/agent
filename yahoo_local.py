@@ -184,6 +184,16 @@ async def main():
         "https://etfdb.com/compare/volume/ as a new table. Return the table in CSV format. "
         )
 
+    # Ensure the data directory exists
+    data_dir = "data"
+    os.makedirs(data_dir, exist_ok=True)
+
+    # Define file paths in the data directory
+    yahoo_raw_csv_path = os.path.join(data_dir, "table_yahoo_output_raw.csv")
+    yahoo_output_csv_path = os.path.join(data_dir, "table_yahoo_output.csv")
+    etfdb_raw_csv_path = os.path.join(data_dir, "table_etfdb_output_raw.csv")
+    etfdb_one_day_csv_path = os.path.join(data_dir, "table_etfdb_one_day.csv")
+
     # Ensure the entire workflow is a single trace
     async with web_search_and_fetch_server:
         with trace("Deterministic story flow"):
@@ -201,7 +211,7 @@ async def main():
 
                 csv_content = table_yahoo_result.final_output.csv_content
 
-                with open("table_yahoo_output_raw.csv", "w") as f:
+                with open(yahoo_raw_csv_path, "w") as f:
                     f.write(csv_content)
 
                 table_yahoo_checker_result = await Runner.run(
@@ -239,8 +249,8 @@ async def main():
                 print(f"Source URL: {table_etfdb_result.final_output.source_url}")
 
                 csv_content = table_etfdb_result.final_output.csv_content
-                
-                with open("table_etfdb_output_raw.csv", "w") as f:
+
+                with open(etfdb_raw_csv_path, "w") as f:
                     f.write(csv_content)
 
                 table_etfdb_checker_result = await Runner.run(
@@ -318,7 +328,7 @@ async def main():
             modify_csv_content = modify_table_yahoo_result.final_output.csv_content
 
             # Save or replace the modified table content to a CSV file
-            with open("table_yahoo_output.csv", "w") as f:
+            with open(yahoo_output_csv_path, "w") as f:
                 f.write(modify_csv_content)
 
             print(("\nSuccessfully saved the modified table to the file 'table_yahoo_output.csv.' "
@@ -338,18 +348,18 @@ async def main():
             modify_csv_content = modify_table_etfdb_result.final_output.csv_content
 
             # Save or replace the modified table content to a CSV file
-            with open("table_etfdb_one_day.csv", "w") as f:
+            with open(etfdb_one_day_csv_path, "w") as f:
                 f.write(modify_csv_content)
 
             print(("\nSuccessfully saved the modified table to the file 'table_etfdb_one_day.csv.'"
                     "\nStart comparing the Yahoo table and the etfdb table......"))
 
             # 6. Load the modified table Yahoo and the modified table etfdb content from the files
-            with open("table_yahoo_output.csv", "r") as f:
+            with open(yahoo_output_csv_path, "r") as f:
                 reader = csv.reader(f)
                 table_yahoo_content = list(reader)
 
-            with open("table_etfdb_one_day.csv", "r") as f:
+            with open(etfdb_one_day_csv_path, "r") as f:
                 reader = csv.reader(f)
                 table_etfdb_content = list(reader)
 

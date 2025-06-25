@@ -8,11 +8,10 @@ wheels/
 .DS_Store
 logs/
 write-story.py
-table_output_raw.csv
-table_etfdb_output_raw.csv
-table_yahoo_output_raw.csv
-table_yahoo_output.csv
-table_etfdb_one_day.csv
+
+# Ignore all CSV data files in data/ except table_etfdb_output.csv
+data/*.csv
+!data/table_etfdb_output.csv
 
 # Virtual environments and environment variables
 .venv

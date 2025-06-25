@@ -179,6 +179,14 @@ async def main():
         "https://etfdb.com/compare/volume/ as a new table. Return the table in CSV format. "
         )
 
+    # Ensure the data directory exists
+    data_dir = "data"
+    os.makedirs(data_dir, exist_ok=True)
+
+    # Update file paths to use the data directory
+    raw_csv_path = os.path.join(data_dir, "table_etfdb_output_raw.csv")
+    output_csv_path = os.path.join(data_dir, "table_etfdb_output.csv")
+
     # Ensure the entire workflow is a single trace
     async with web_search_and_fetch_server:
         with trace("Deterministic story flow"):
@@ -195,8 +203,8 @@ async def main():
                 print(f"Source URL: {table_etfdb_result.final_output.source_url}")
 
                 csv_content = table_etfdb_result.final_output.csv_content
-                
-                with open("table_etfdb_output_raw.csv", "w") as f:
+
+                with open(raw_csv_path, "w") as f:
                     f.write(csv_content)
 
                 table_etfdb_checker_result = await Runner.run(
@@ -273,8 +281,8 @@ async def main():
 
             # Save or append the modified table content to a CSV file by Checking if the file exists and
             # handle headers appropriately
-            file_exists = os.path.isfile("table_etfdb_output.csv")
-            with open("table_etfdb_output.csv", "a") as f:
+            file_exists = os.path.isfile(output_csv_path)
+            with open(output_csv_path, "a") as f:
                 # If file exists, skip the header line
                 if file_exists:
                     # Split content into lines and remove header
@@ -284,10 +292,10 @@ async def main():
                 else:
                     f.write(modify_csv_content)
 
-            print("\nSuccessfully appended the modified table to the file 'table_etfdb_output.csv.'")
+            print(f"\nSuccessfully appended the modified table to the file '{output_csv_path}.'")
 
             # # 4. Load the modified table and filter the table by a specific date with retry logic
-            # with open("table_etfdb_output.csv", "r") as f:
+            # with open(output_csv_path, "r") as f:
             #     reader = csv.reader(f)
             #     modified_table_content = list(reader)
             # print(
