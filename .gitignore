@@ -7,7 +7,7 @@ wheels/
 *.egg-info
 .DS_Store
 logs/
-write-story.py
+analysis.py
 
 # Ignore all CSV data files in data/ except table_etfdb_output.csv
 data/*.csv
