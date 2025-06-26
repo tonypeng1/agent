@@ -8,6 +8,7 @@ wheels/
 .DS_Store
 logs/
 analysis.py
+edf.py
 
 # Ignore all CSV data files in data/ except table_etfdb_output.csv
 data/*.csv
