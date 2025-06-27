@@ -224,7 +224,7 @@ async def main():
                     if retry_count == max_retries:
                         print("Table content is not valid after 3 attempts. Stopping here.")
                         return
-                    print("Retrying table fetch and check...")
+                    print("\nRetrying table fetch and check...")
                     continue
                 print("\nTable content is valid, so we continue to fetch the current date.")
                 break
@@ -258,7 +258,7 @@ async def main():
                     if retry_count == max_retries:
                         print("Date format is not valid after 3 attempts. Stopping here.")
                         return
-                    print("Retrying date fetch and check...")
+                    print("\nRetrying date fetch and check...")
                     await asyncio.sleep(1)  # Add a short delay between retries
                     continue
                 print(("\nDate content's format is valid. \n"
@@ -328,7 +328,7 @@ async def main():
             #         if retry_count == max_retries:
             #             print("Failed to filter table by date after 3 attempts. Stopping here.")
             #             return
-            #         print("Retrying table filtering...")
+            #         print("\nRetrying table filtering...")
             #         await asyncio.sleep(2)  # Optional: short delay before retry
 
             # # 5. Analyze ETF trends with retry logic
@@ -353,7 +353,7 @@ async def main():
             #         if retry_count == max_retries:
             #             print("Failed to analyze ETF trends after 3 attempts. Stopping here.")
             #             return
-            #         print("Retrying ETF trend analysis...")
+            #         print("\nRetrying ETF trend analysis...")
             #         await asyncio.sleep(2)  # Optional: short delay before retry
                     
             print("")
