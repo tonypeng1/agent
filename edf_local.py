@@ -294,67 +294,67 @@ async def main():
 
             print(f"\nSuccessfully appended the modified table to the file '{output_csv_path}.'")
 
-            # # 4. Load the modified table and filter the table by a specific date with retry logic
-            # with open(output_csv_path, "r") as f:
-            #     reader = csv.reader(f)
-            #     modified_table_content = list(reader)
-            # print(
-            #     (f"\nModified table content loaded from file: {modified_table_content[:2]}...\n"
-            #      "\nStart filering the table by dates...")
-            # )
+            # 4. Load the modified table and filter the table by a specific date with retry logic
+            with open(output_csv_path, "r") as f:
+                reader = csv.reader(f)
+                modified_table_content = list(reader)
+            print(
+                (f"\nModified table content loaded from file: {modified_table_content[:2]}...\n"
+                 "\nStart filering the table by dates...")
+            )
 
-            # max_retries = 3
-            # retry_count = 0
-            # while retry_count < max_retries:
-            #     try:
-            #         target_date = fetch_date_result.final_output.date_content
-            #         filtered_table_result = await Runner.run(
-            #             filter_by_date_agent,
-            #             f"""Please filter the following table content by the target date:
-            #                 "table": {modified_table_content}
-            #                 "target Date": {target_date}
-            #                 """,
-            #         )
+            max_retries = 3
+            retry_count = 0
+            while retry_count < max_retries:
+                try:
+                    target_date = fetch_date_result.final_output.date_content
+                    filtered_table_result = await Runner.run(
+                        filter_by_date_agent,
+                        f"""Please filter the following table content by the target date:
+                            "table": {modified_table_content}
+                            "target Date": {target_date}
+                            """,
+                    )
 
-            #         filtered_rows_present = filtered_table_result.final_output.filtered_rows_present
-            #         filtered_rows_earlier = filtered_table_result.final_output.filtered_rows_earlier
-            #         print(f"\nFiltered table content (present): {filtered_rows_present[:3]}...")
-            #         print(f"\nFiltered table content (earlier): {filtered_rows_earlier[:3]}...")
-            #         print("\nStart ETF trend analysis...")
-            #         break  # Success, exit the retry loop
-            #     except Exception as e:
-            #         retry_count += 1
-            #         print(f"Error filtering table by date (attempt {retry_count}/3): {e}")
-            #         if retry_count == max_retries:
-            #             print("Failed to filter table by date after 3 attempts. Stopping here.")
-            #             return
-            #         print("\nRetrying table filtering...")
-            #         await asyncio.sleep(2)  # Optional: short delay before retry
+                    filtered_rows_present = filtered_table_result.final_output.filtered_rows_present
+                    filtered_rows_earlier = filtered_table_result.final_output.filtered_rows_earlier
+                    print(f"\nFiltered table content (present): {filtered_rows_present[:3]}...")
+                    print(f"\nFiltered table content (earlier): {filtered_rows_earlier[:3]}...")
+                    print("\nStart ETF trend analysis...")
+                    break  # Success, exit the retry loop
+                except Exception as e:
+                    retry_count += 1
+                    print(f"Error filtering table by date (attempt {retry_count}/3): {e}")
+                    if retry_count == max_retries:
+                        print("Failed to filter table by date after 3 attempts. Stopping here.")
+                        return
+                    print("\nRetrying table filtering...")
+                    await asyncio.sleep(2)  # Optional: short delay before retry
 
-            # # 5. Analyze ETF trends with retry logic
-            # max_retries = 3
-            # retry_count = 0
-            # while retry_count < max_retries:
-            #     try:
-            #         trend_analysis_result = await Runner.run(
-            #             analyze_etf_trends_agent,
-            #             f"""Please analyze the trends in ETF activity based on the following two tables:
-            #                 "filtered_rows_present": {filtered_rows_present},
-            #                 "filtered_rows_earlier": {filtered_rows_earlier}
-            #                 """,
-            #         )
-            #         print("\nETF Trend Analysis:\n")
-            #         print(trend_analysis_result.final_output.summary)
-            #         print("\n\nEnd of the deterministic story flow.\n")
-            #         break  # Success, exit the retry loop
-            #     except Exception as e:
-            #         retry_count += 1
-            #         print(f"Error analyzing ETF trends (attempt {retry_count}/3): {e}")
-            #         if retry_count == max_retries:
-            #             print("Failed to analyze ETF trends after 3 attempts. Stopping here.")
-            #             return
-            #         print("\nRetrying ETF trend analysis...")
-            #         await asyncio.sleep(2)  # Optional: short delay before retry
+            # 5. Analyze ETF trends with retry logic
+            max_retries = 3
+            retry_count = 0
+            while retry_count < max_retries:
+                try:
+                    trend_analysis_result = await Runner.run(
+                        analyze_etf_trends_agent,
+                        f"""Please analyze the trends in ETF activity based on the following two tables:
+                            "filtered_rows_present": {filtered_rows_present},
+                            "filtered_rows_earlier": {filtered_rows_earlier}
+                            """,
+                    )
+                    print("\nETF Trend Analysis:\n")
+                    print(trend_analysis_result.final_output.summary)
+                    print("\n\nEnd of the deterministic story flow.\n")
+                    break  # Success, exit the retry loop
+                except Exception as e:
+                    retry_count += 1
+                    print(f"Error analyzing ETF trends (attempt {retry_count}/3): {e}")
+                    if retry_count == max_retries:
+                        print("Failed to analyze ETF trends after 3 attempts. Stopping here.")
+                        return
+                    print("\nRetrying ETF trend analysis...")
+                    await asyncio.sleep(2)  # Optional: short delay before retry
                     
             print("")
 
