@@ -138,6 +138,7 @@ async def main():
     )
 
     # 6. Filter table by date agent
+    week_earlier = 2  # Number of weeks to go back for the earlier date
     filter_by_date_agent = Agent(
         name="filter_by_date_agent",
         instructions=(
@@ -145,8 +146,8 @@ async def main():
             "filter the table to only include rows where the 'Date' column matches the target date exactly. "
             "If there is no exact match, return the rows with the closest date (by time difference) to the target date. "
             "Return these filtered rows, including the header, as a list of lists and save them in the field 'filtered_rows_present'.\n\n"
-            "Additionally, filter the table by another target date that is about a week earlier than the given target date. "
-            "If there are no dates at least a week earlier, choose the earliest available date in the table. "
+            f"Additionally, filter the table by another target date that is about {week_earlier} weeks earlier than the given target date. "
+            f"If there are no dates at least {week_earlier} weeks earlier, choose the earliest available date in the table. "
             "Return these filtered rows, including the header, as a list of lists and save them in the field 'filtered_rows_earlier'.\n\n"
             "**IMPORTANT:** Return a valid JSON object. The values for 'filtered_rows_present' and 'filtered_rows_earlier' must be JSON arrays (not strings). Example:\n"
             "{\n"
