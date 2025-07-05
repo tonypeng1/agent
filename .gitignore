@@ -13,6 +13,7 @@ edf.py
 # Ignore all CSV data files in data/ except table_etfdb_output.csv
 data/*.csv
 !data/table_etfdb_output.csv
+!data/table_yahoo_output.csv
 
 # Virtual environments and environment variables
 .venv

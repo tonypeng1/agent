@@ -166,6 +166,8 @@ async def main():
             "sector rotation, and practical trading insights. "
             "Focus on the fact that the volume in the Yahoo table is for one day, while that in the etfdb table is the average "
             "for the last 3 months. \n"
+            "Be analytical, avoid generalities, and ensure that each of your statements supports data-backed reasoning. \n"
+            "Use the following format for your analysis: \n"
             "Summarize your analysis in a list of findings. Explicitly mentioning the current date and the two tables you are comparing. "
             "Return your summary in the 'summary' field."
         ),
@@ -190,7 +192,8 @@ async def main():
 
     # Define file paths in the data directory
     yahoo_raw_csv_path = os.path.join(data_dir, "table_yahoo_output_raw.csv")
-    yahoo_output_csv_path = os.path.join(data_dir, "table_yahoo_output.csv")
+    yahoo_oneday_csv_path = os.path.join(data_dir, "table_yahoo_one_day.csv")
+    yahoo_csv_path = os.path.join(data_dir, "table_yahoo_output.csv")
     etfdb_raw_csv_path = os.path.join(data_dir, "table_etfdb_output_raw.csv")
     etfdb_one_day_csv_path = os.path.join(data_dir, "table_etfdb_one_day.csv")
 
@@ -312,7 +315,8 @@ async def main():
                 )
                 break
 
-            # 4. Modify the table Yahoo content to add the current date and save it to a CSV file
+            # 4. Modify the table Yahoo content to add the current date, save it to a one-day CSV file,
+            # and append it to the cumulative CSV file
             modify_table_yahoo_result = await Runner.run(
                 modify_table_agent,
                 f"""Please add a new column with the name “Date” as the first column of the table, 
@@ -327,14 +331,30 @@ async def main():
             print(f"\nModified table content: {modify_table_yahoo_result.final_output.csv_content[:80]}...")
             modify_csv_content = modify_table_yahoo_result.final_output.csv_content
 
-            # Save or replace the modified table content to a CSV file
-            with open(yahoo_output_csv_path, "w") as f:
+            # Save or replace the one-day modified table content to a CSV file
+            with open(yahoo_oneday_csv_path, "w") as f:
                 f.write(modify_csv_content)
 
-            print(("\nSuccessfully saved the modified table to the file 'table_yahoo_output.csv.' "
-                    "\nStart adding the current date as the first column in the etfdb table..."))
+            print(("\nSuccessfully saved the modified table to the file 'table_yahoo_one_day.csv.' "
+                    "\nStart save or append the Yahoo current data to the cumulative Yahoo table..."))
+            
+            # Save or append the modified table content to an cumulative CSV file by Checking if the 
+            # file exists and handle headers appropriately
+            file_exists = os.path.isfile(yahoo_csv_path)
+            with open(yahoo_csv_path, "a") as f:
+                # If file exists, skip the header line
+                if file_exists:
+                    # Split content into lines and remove header
+                    content_lines = modify_csv_content.split('\n')
+                    content_without_header = '\n'.join(content_lines[1:])
+                    f.write('\n' + content_without_header)
+                else:
+                    f.write(modify_csv_content)
 
-            # 5. Modify the table etfdb content to add the current date and save it to a CSV file
+            print(("\nSuccessfully appended the modified table to the file 'table_yahoo_output.csv'. "
+                    "\nNow we will start adding the current date as the first column in the etfdb table..."))
+
+            # 5. Modify the table etfdb content by addiing the current date and save it to a CSV file
             modify_table_etfdb_result = await Runner.run(
                 modify_table_agent,
                 f"""Please add a new column with the name “Date” as the first column of the table, 
@@ -355,7 +375,7 @@ async def main():
                     "\nStart comparing the Yahoo table and the etfdb table......"))
 
             # 6. Load the modified table Yahoo and the modified table etfdb content from the files
-            with open(yahoo_output_csv_path, "r") as f:
+            with open(yahoo_oneday_csv_path, "r") as f:
                 reader = csv.reader(f)
                 table_yahoo_content = list(reader)
 
@@ -377,7 +397,7 @@ async def main():
                     )
                     print("\nETF Trend Analysis:\n")
                     print(trend_analysis_result.final_output.summary)
-                    print("\n\nEnd of the deterministic story flow.\n")
+                    print("\nEnd of the deterministic story flow.\n")
                     break  # Success, exit the retry loop
                 except Exception as e:
                     retry_count += 1
