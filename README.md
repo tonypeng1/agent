@@ -37,7 +37,7 @@ This script focuses on historical and trend analysis using only ETFdb data (base
 3. **Fetches and validates** the current date and time with retry logic.
 4. **Adds** the current date as the first column in the table.
 5. **Appends** the modified table to a cumulative CSV file in the `data/` directory.
-6. **Filters** the table by specific dates (current and about a week earlier).
+6. **Filters** the table by specific dates (current and some weeks earlier).
 7. **Analyzes and compare** the trends between the two filtered tables using an LLM agent.
 
 ## Data Files
@@ -78,9 +78,8 @@ This script focuses on historical and trend analysis using only ETFdb data (base
 - The scripts use agent-based orchestration and require access to OpenAI and Anthropic APIs.
 - To only fetch and append the daily data from ETFdb, comment out the advanced features (historical filtering and trend analysis) in `edf_local.py`.
 
-## Terminal Output
+## Terminal Output of Running `edf_local.py`
 
-```
 [07/05/25 08:39:30] INFO     Processing request of type ListToolsRequest                                 server.py:619
 [07/05/25 08:39:32] INFO     Processing request of type CallToolRequest                                  server.py:619
                     INFO     HTTP Request: GET https://etfdb.com/compare/volume/ "HTTP/1.1 200 OK"     _client.py:1740
@@ -145,6 +144,5 @@ The 3-month average share volume data reveals several key trends in ETF activity
 
 **Key Takeaway**: The data suggests a market in transition, with increased defensive positioning in semiconductors, steady institutional accumulation in core holdings, and growing interest in cryptocurrency exposure, all while maintaining elevated options for both bullish and bearish leveraged plays.
 
-
 End of the deterministic story flow.
-```
+
